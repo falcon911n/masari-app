@@ -3,18 +3,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Cairo } from 'next/font/google';
 import {
   GraduationCap, Search, BookOpen, PlayCircle, FileText, Lock,
   CheckCircle, Sparkles, Heart, ShieldAlert, UserCheck,
-  LogIn, ShoppingBag, Trash2, Star, ChevronRight, ChevronDown,
+  LogIn, LogOut, ShoppingBag, Trash2, Star, ChevronRight, ChevronDown,
   Flame, X, Bell, Percent, Sun, Moon, TrendingUp, Award, Gift,
   Wallet, Users, Video, ClipboardList, Quote, Globe, Share2,
-  MessageCircle, Tv, MapPin, Phone, Mail, Send, Copy, ExternalLink,
-  User, Palette
+  MessageCircle, Tv, MapPin, Phone, Mail, Send, Copy, User
 } from 'lucide-react';
 
-// إعداد خط القاهرة الداعم للغة العربية
 const cairo = Cairo({
   subsets: ['arabic'],
   weight: ['400', '600', '700', '800', '900'],
@@ -32,13 +31,8 @@ interface Course {
   instructor?: string;
   is_published?: boolean;
   is_featured?: boolean;
-  cover_image?: string;
-  color?: string;
+  section_type?: string; // 'bestseller' | 'courses' | 'summaries' | 'books' | 'quizzes'
   rating?: number;
-  reviews_count?: number;
-  students_count?: number;
-  sales_count?: number;
-  lessons_count?: number;
   created_at?: string;
 }
 
@@ -63,12 +57,6 @@ interface Testimonial {
   avatar_color?: string;
 }
 
-const FALLBACK_TESTIMONIALS: Testimonial[] = [
-  { id: 't1', name: 'سارة العتيبي', role: 'طالبة هندسة', text: 'منصة مساري ساعدتني أفهم مادة الرياضيات بطريقة مبسطة، ورفعت معدلي بشكل ملحوظ خلال فصل واحد.', rating: 5, avatar_color: '#2563EB' },
-  { id: 't2', name: 'فهد القحطاني', role: 'طالب علوم حاسب', text: 'الملخصات دقيقة ومركزة، ووفرت علي وقت كبير قبل الاختبارات. تجربة احترافية فعلاً.', rating: 5, avatar_color: '#7C3AED' },
-  { id: 't3', name: 'نورة الشمري', role: 'طالبة أمن معلومات', text: 'الشرح واضح والمدرسين متمكنين، وأسلوب المتابعة داخل المنصة سهل جداً.', rating: 4, avatar_color: '#22C55E' },
-];
-
 const FAQ_ITEMS = [
   { q: 'كيف أشترك في مقرر داخل المنصة؟', a: 'اختر المقرر الذي يناسبك، ثم اضغط على زر "إضافة للسلة"، وبعدها أكمل عملية الدفع من سلة المشتريات لتفعيل الاشتراك مباشرة.' },
   { q: 'هل يمكنني مشاهدة الفيديوهات أكثر من مرة؟', a: 'نعم، بعد تفعيل الاشتراك يصبح بإمكانك مشاهدة جميع محاضرات المقرر في أي وقت وبدون حد لعدد المشاهدات.' },
@@ -82,7 +70,7 @@ function StarRating({ rating, size = 'w-3.5 h-3.5' }: { rating: number; size?: s
       {[1, 2, 3, 4, 5].map((i) => (
         <Star
           key={i}
-          className={`${size} ${i <= Math.round(rating) ? 'text-[#F59E0B] fill-[#F59E0B]' : 'text-slate-300 fill-slate-300'}`}
+          className={`${size} ${i <= Math.round(rating) ? 'text-[#F59E0B] fill-[#F59E0B]' : 'text-slate-600 fill-slate-600'}`}
         />
       ))}
     </div>
@@ -90,22 +78,21 @@ function StarRating({ rating, size = 'w-3.5 h-3.5' }: { rating: number; size?: s
 }
 
 export default function Home() {
+  const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState('الكل');
-  const [activeTabSection, setActiveTabSection] = useState('bestseller');
+  const [activeTabSection, setActiveTabSection] = useState<'bestseller' | 'courses' | 'summaries' | 'books' | 'quizzes'>('bestseller');
+
   const [cart, setCart] = useState<Course[]>([]);
   const [showCartModal, setShowCartModal] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
   const [darkMode, setDarkMode] = useState(true);
-  const [themeColor, setThemeColor] = useState<'blue' | 'red' | 'purple' | 'green' | 'black'>('blue');
   const [couponCode, setCouponCode] = useState('');
   const [discountApplied, setDiscountApplied] = useState<{ type: 'percent' | 'fixed'; value: number } | null>(null);
 
@@ -116,7 +103,7 @@ export default function Home() {
   const [aiResponses, setAiResponses] = useState<{ role: string; text: string }[]>([]);
 
   const [loadingCourses, setLoadingCourses] = useState(true);
-  const [testimonials, setTestimonials] = useState<Testimonial[]>(FALLBACK_TESTIMONIALS);
+  const [realTestimonials, setRealTestimonials] = useState<Testimonial[]>([]);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [platformStats, setPlatformStats] = useState({
     coursesCount: 0,
@@ -142,16 +129,43 @@ export default function Home() {
       await Promise.all([
         fetchCourses(),
         fetchNotifications(),
-        checkUser(),
-        fetchTestimonials(),
+        checkUserAndRedirect(),
+        fetchRealTestimonials(),
         fetchPlatformStats()
       ]);
     } catch (e) {
-      console.error('Initialization Safe Error:', e);
+      console.error('Initialization Error:', e);
     } finally {
       setLoadingCourses(false);
     }
   }
+
+  // التأكد من تسجيل الدخول وإتاحة خيار الزائر أو التحويل التلقائي
+  async function checkUserAndRedirect() {
+    try {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        setUser(data.user);
+        fetchSubscriptions(data.user.id);
+      } else {
+        // تحويل الزائر الجديد تلقائياً لصفحة تسجيل الدخول إذا فتح الرابط لأول مرة
+        const isGuest = sessionStorage.getItem('masari_guest_mode');
+        if (!isGuest) {
+          sessionStorage.setItem('masari_guest_mode', 'true');
+          router.push('/login');
+        }
+      }
+    } catch (e) {}
+  }
+
+  // تسجيل الخروج المباشر
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setSubscribedCourses([]);
+    showToast('تم تسجيل الخروج بنجاح 👋');
+    router.push('/login');
+  };
 
   useEffect(() => {
     if (selectedCourse) {
@@ -159,46 +173,6 @@ export default function Home() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [selectedCourse]);
-
-  // فلترة المواد والبحث المطور
-  useEffect(() => {
-    let result = courses.filter((c) => c.is_published !== false);
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (c) =>
-          c.title?.toLowerCase().includes(q) ||
-          c.code?.toLowerCase().includes(q) ||
-          c.instructor?.toLowerCase().includes(q) ||
-          c.description?.toLowerCase().includes(q)
-      );
-    }
-
-    if (selectedSubject !== 'الكل') {
-      const s = selectedSubject.toLowerCase();
-      result = result.filter((c) => {
-        const fullText = `${c.title} ${c.code}`.toLowerCase();
-        if (s.includes('رياض')) return fullText.includes('ريض') || fullText.includes('رياض');
-        if (s.includes('فيز')) return fullText.includes('فيز');
-        if (s.includes('تقن')) return fullText.includes('تقن') || fullText.includes('عال');
-        if (s.includes('سايبر')) return fullText.includes('أمن') || fullText.includes('سايبر');
-        return true;
-      });
-    }
-
-    setFilteredCourses(result);
-  }, [searchQuery, selectedSubject, courses]);
-
-  async function checkUser() {
-    try {
-      const { data } = await supabase.auth.getUser();
-      if (data?.user) {
-        setUser(data.user);
-        fetchSubscriptions(data.user.id);
-      }
-    } catch (e) {}
-  }
 
   async function fetchSubscriptions(userId: string) {
     try {
@@ -211,8 +185,7 @@ export default function Home() {
     try {
       const { data } = await supabase.from('courses').select('*');
       if (data) {
-        setCourses(data);
-        setFilteredCourses(data.filter((c) => c.is_published !== false));
+        setCourses(data.filter((c) => c.is_published !== false));
       }
     } catch (e) {
       setCourses([]);
@@ -246,10 +219,10 @@ export default function Home() {
     }
   }
 
-  async function fetchTestimonials() {
+  async function fetchRealTestimonials() {
     try {
-      const { data } = await supabase.from('testimonials').select('*').limit(6);
-      if (data && data.length > 0) setTestimonials(data);
+      const { data } = await supabase.from('testimonials').select('*').eq('is_approved', true).limit(6);
+      if (data) setRealTestimonials(data);
     } catch {}
   }
 
@@ -273,10 +246,10 @@ export default function Home() {
     } catch {}
   }
 
-  const copyShareLink = (courseTitle?: string) => {
+  const copyShareLink = () => {
     if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
-      showToast(courseTitle ? `تم نسخ رابط مقرر (${courseTitle})!` : 'تم نسخ رابط منصة مساري بنجاح! 📋');
+      navigator.clipboard.writeText(window.location.origin);
+      showToast('تم نسخ رابط المنصة بنجاح! 📋');
     }
   };
 
@@ -334,6 +307,7 @@ export default function Home() {
   const handleCheckoutAndPay = async () => {
     if (!user) {
       showToast('يرجى تسجيل الدخول أولاً لتتمكن من الشراء!');
+      router.push('/login');
       return;
     }
     if (cart.length === 0) return;
@@ -342,7 +316,7 @@ export default function Home() {
       for (const course of cart) {
         await supabase.from('subscriptions').insert([{ user_id: user.id, course_id: course.id }]);
       }
-      showToast('تمت عملية الاشتراك بنجاح! 🎉 مبارك.');
+      showToast('تمت عملية الاشتراك بنجاح! 🎉');
       fetchSubscriptions(user.id);
       setCart([]);
       setShowCartModal(false);
@@ -363,84 +337,81 @@ export default function Home() {
       const q = query.toLowerCase();
 
       if (q.includes('سعر') || q.includes('اشتراك') || q.includes('خصم')) {
-        reply = 'أسعار المقررات موضحة على كل مادة، ويمكنك استخدام كوبون (MASARI20) للحصول على خصم 20% فوراً!';
-      } else if (q.includes('ريض') || q.includes('رياضيات')) {
-        reply = 'لدينا شروحات ممتازة لمواد الرياضيات تشمل الفيديوهات وسلايدات الـ PDF والواجبات المحلولة.';
-      } else if (q.includes('تواصل') || q.includes('دعم') || q.includes('مساعدة')) {
-        reply = 'يمكنك التواصل مباشرة مع فريق الدعم عبر الواتساب على الرقم +966500000000 أو عبر البريد support@masari.sa';
+        reply = 'أسعار المقررات موضحة على كل مادة، ويمكنك استخدام كود الخصم المتاح للحصول على تخفيض فوراً!';
+      } else if (q.includes('تواصل') || q.includes('دعم') || q.includes('واتس')) {
+        reply = 'يمكنك التواصل المباشر مع الدعم عبر الواتساب على الرقم +966 55 011 8282 أو البريد falcon911n@gmail.com';
       }
 
       setAiResponses([...newHistory, { role: 'bot', text: reply }]);
-    }, 500);
+    }, 400);
   };
+
+  const displayCourses = useMemo(() => {
+    let list = courses;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (c) =>
+          c.title?.toLowerCase().includes(q) ||
+          c.code?.toLowerCase().includes(q) ||
+          c.instructor?.toLowerCase().includes(q) ||
+          c.description?.toLowerCase().includes(q)
+      );
+    }
+
+    if (activeTabSection === 'bestseller') {
+      return list.slice(0, 6);
+    } else {
+      return list.filter((c) => c.section_type === activeTabSection || !c.section_type || c.section_type === 'courses');
+    }
+  }, [courses, searchQuery, activeTabSection]);
 
   const isSubscribedToSelected = selectedCourse ? subscribedCourses.includes(selectedCourse.id) : false;
   const canAccessLesson = selectedLesson ? Boolean(selectedLesson.is_preview || isSubscribedToSelected) : false;
 
-  const bestSellers = useMemo(() => filteredCourses.slice(0, 6), [filteredCourses]);
-  const freeCourses = useMemo(() => filteredCourses.filter((c) => !c.price || c.price === 0), [filteredCourses]);
-  const paidCourses = useMemo(() => filteredCourses.filter((c) => (c.price || 0) > 0), [filteredCourses]);
-
-  // أنماط الألوان المخصصة للمستخدم
-  const colorThemeClasses = useMemo(() => {
-    switch (themeColor) {
-      case 'red': return { primary: 'bg-red-600', text: 'text-red-500', border: 'border-red-600/30', badge: 'bg-red-500/10 text-red-500' };
-      case 'purple': return { primary: 'bg-purple-600', text: 'text-purple-500', border: 'border-purple-600/30', badge: 'bg-purple-500/10 text-purple-500' };
-      case 'green': return { primary: 'bg-emerald-600', text: 'text-emerald-500', border: 'border-emerald-600/30', badge: 'bg-emerald-500/10 text-emerald-500' };
-      case 'black': return { primary: 'bg-zinc-800', text: 'text-zinc-300', border: 'border-zinc-700', badge: 'bg-zinc-800 text-zinc-300' };
-      default: return { primary: 'bg-[#2563EB]', text: 'text-[#2563EB]', border: 'border-[#2563EB]/30', badge: 'bg-[#2563EB]/10 text-[#2563EB]' };
-    }
-  }, [themeColor]);
-
-  const cardBase = `group relative border rounded-3xl p-6 transition-all duration-300 cursor-pointer flex flex-col justify-between space-y-5 shadow-sm hover:shadow-2xl hover:-translate-y-1 ${darkMode ? 'bg-slate-900 border-slate-800 hover:border-slate-700' : 'bg-white border-[#E5E7EB] hover:border-blue-400'}`;
+  const cardBase = `group relative border rounded-3xl p-6 transition-all duration-300 cursor-pointer flex flex-col justify-between space-y-5 shadow-sm hover:shadow-2xl hover:-translate-y-1 ${
+    darkMode ? 'bg-slate-900 border-slate-800 hover:border-[#2563EB]/50' : 'bg-white border-[#E5E7EB] hover:border-[#2563EB]'
+  }`;
 
   function CourseCard({ course }: { course: Course }) {
     return (
       <div key={course.id} onClick={() => setSelectedCourse(course)} className={cardBase}>
         <div className="space-y-3">
           <div className="flex justify-between items-center">
-            <span className={`${colorThemeClasses.badge} text-[11px] font-bold px-2.5 py-1 rounded-lg`}>
+            <span className="bg-[#2563EB]/10 text-[#2563EB] text-[11px] font-bold px-2.5 py-1 rounded-lg">
               {course.code || 'مقرر'}
             </span>
-            <button
-              onClick={(e) => { e.stopPropagation(); copyShareLink(course.title); }}
-              className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
-              title="مشاركة المقرر"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-            </button>
           </div>
 
-          <h3 className="text-lg font-bold group-hover:text-blue-400 transition-colors duration-300 line-clamp-2">
+          <h3 className="text-lg font-bold group-hover:text-[#2563EB] transition-colors duration-300 line-clamp-2">
             {course.title}
           </h3>
 
           {course.instructor && (
             <p className="text-xs text-slate-400 flex items-center gap-1.5">
-              <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+              <UserCheck className="w-3.5 h-3.5 text-[#2563EB]" />
               {course.instructor}
             </p>
           )}
         </div>
 
         <div className={`pt-4 border-t flex justify-between items-center ${darkMode ? 'border-slate-800' : 'border-[#E5E7EB]'}`}>
-          <div className="flex flex-col">
-            <span className="text-base font-black text-[#22C55E]">
-              {course.price ? `${course.price} ر.س` : 'مجاني'}
-            </span>
-          </div>
+          <span className="text-base font-black text-[#22C55E]">
+            {course.price ? `${course.price} ر.س` : 'مجاني'}
+          </span>
 
           <div className="flex items-center gap-2">
             <button
               onClick={(e) => addToCart(course, e)}
-              className={`p-2 border rounded-xl transition-all duration-300 active:scale-90 ${darkMode ? 'bg-slate-800 text-blue-400 border-slate-700 hover:bg-[#2563EB] hover:text-white' : 'bg-[#F8FAFC] text-[#2563EB] border-[#E5E7EB] hover:bg-[#2563EB] hover:text-white'}`}
+              className="p-2 border border-slate-700 bg-slate-800 text-[#2563EB] hover:bg-[#2563EB] hover:text-white rounded-xl transition"
               title="إضافة للسلة"
             >
               <ShoppingBag className="w-4 h-4" />
             </button>
-            <span className={`${colorThemeClasses.badge} group-hover:bg-[#2563EB] group-hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-300 flex items-center gap-1`}>
+            <span className="bg-[#2563EB]/10 text-[#2563EB] group-hover:bg-[#2563EB] group-hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1">
               استعراض
-              <ChevronRight className="w-4 h-4 rotate-180 transition-transform duration-300 group-hover:-translate-x-1" />
+              <ChevronRight className="w-4 h-4 rotate-180 transition-transform group-hover:-translate-x-1" />
             </span>
           </div>
         </div>
@@ -461,56 +432,35 @@ export default function Home() {
         </div>
       )}
 
-      {/* الهيدر */}
+      {/* الهيدر العلوي */}
       <header className={`sticky top-0 z-50 border-b transition-colors backdrop-blur-md ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-[#E5E7EB]'}`}>
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center gap-4">
 
+          {/* الشعار المباشر بدون عبارات زائدة */}
           <button
             onClick={() => { setSelectedCourse(null); setSelectedLesson(null); }}
             className="flex items-center gap-3 focus:outline-none text-right group"
           >
-            <div className={`${colorThemeClasses.primary} p-2.5 rounded-2xl text-white shadow-lg group-hover:scale-105 transition-transform duration-300`}>
+            <div className="bg-[#2563EB] p-2.5 rounded-2xl text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
               <GraduationCap className="w-6 h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className={`text-xl font-black ${colorThemeClasses.text}`}>مساري</span>
-                <span className="text-xs font-bold text-slate-400">| Masari</span>
-              </div>
-              <p className={`text-[11px] font-extrabold ${colorThemeClasses.text}`}>طريقك إلى +A</p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xl font-black text-[#2563EB]">مساري</span>
+              <span className="text-xs font-bold text-slate-400">| Masari</span>
             </div>
           </button>
 
           <div className="flex items-center gap-2 md:gap-3">
-            {/* اختيار اللون */}
-            <div className="hidden sm:flex items-center gap-1 bg-slate-800/50 p-1.5 rounded-xl border border-slate-800">
-              {(['blue', 'red', 'purple', 'green', 'black'] as const).map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setThemeColor(c)}
-                  className={`w-4 h-4 rounded-full transition transform hover:scale-125 ${c === 'blue' ? 'bg-blue-600' : c === 'red' ? 'bg-red-600' : c === 'purple' ? 'bg-purple-600' : c === 'green' ? 'bg-emerald-600' : 'bg-zinc-800 border border-zinc-600'}`}
-                />
-              ))}
-            </div>
-
-            <button
-              onClick={() => copyShareLink()}
-              className={`p-2.5 rounded-xl border transition-all duration-300 active:scale-90 ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-[#E5E7EB] text-[#6B7280]'}`}
-              title="نسخ رابط المنصة"
-            >
-              <Copy className="w-4 h-4" />
-            </button>
-
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2.5 rounded-xl border transition-all duration-300 active:scale-90 ${darkMode ? 'bg-slate-800 border-slate-700 text-amber-400' : 'bg-white border-[#E5E7EB] text-[#6B7280]'}`}
+              className="p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-amber-400"
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
             <button
               onClick={() => setShowNotifModal(true)}
-              className={`relative p-2.5 rounded-xl border transition-all duration-300 active:scale-90 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-[#E5E7EB] text-[#111827]'}`}
+              className="relative p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-white"
             >
               <Bell className="w-5 h-5 text-slate-400" />
               {notifications.length > 0 && (
@@ -522,9 +472,9 @@ export default function Home() {
 
             <button
               onClick={() => setShowCartModal(true)}
-              className={`relative p-2.5 rounded-xl border transition-all duration-300 active:scale-90 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-[#E5E7EB] text-[#111827]'}`}
+              className="relative p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-white"
             >
-              <ShoppingBag className={`w-5 h-5 ${colorThemeClasses.text}`} />
+              <ShoppingBag className="w-5 h-5 text-[#2563EB]" />
               {cart.length > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
                   {cart.length}
@@ -534,21 +484,31 @@ export default function Home() {
 
             <button
               onClick={() => setShowAiBot(!showAiBot)}
-              className={`${colorThemeClasses.badge} border ${colorThemeClasses.border} px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5`}
+              className="bg-[#2563EB]/10 text-[#2563EB] hover:bg-[#2563EB]/20 border border-[#2563EB]/20 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
             >
               <Sparkles className="w-4 h-4" />
               <span className="hidden sm:inline">Masari AI</span>
             </button>
 
             {user ? (
-              <Link href="/profile" className={`flex items-center gap-2 ${colorThemeClasses.badge} border ${colorThemeClasses.border} px-3.5 py-2 rounded-xl text-xs font-bold hover:opacity-80 transition`}>
-                <User className="w-4 h-4" />
-                <span className="truncate max-w-[100px]">{user.email?.split('@')[0]}</span>
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link href="/profile" className="flex items-center gap-2 bg-[#2563EB]/10 border border-[#2563EB]/20 text-[#2563EB] px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-[#2563EB]/20 transition">
+                  <User className="w-4 h-4" />
+                  <span className="truncate max-w-[100px]">{user.email?.split('@')[0]}</span>
+                </Link>
+                {/* زر تسجيل الخروج الصريح */}
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 p-2 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                  title="تسجيل الخروج"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
             ) : (
               <Link
                 href="/login"
-                className={`${colorThemeClasses.primary} text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-md flex items-center gap-2`}
+                className="bg-[#2563EB] hover:bg-blue-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-md shadow-blue-500/20 flex items-center gap-2"
               >
                 <LogIn className="w-4 h-4" />
                 تسجيل الدخول
@@ -571,15 +531,10 @@ export default function Home() {
       {!selectedCourse ? (
         <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-16">
 
-          {/* الهيرو والأزرار المطورة */}
+          {/* الهيرو الرئيسي بعبارة صريحة مساري | Masari */}
           <section className={`rounded-3xl p-8 md:p-12 text-center space-y-6 border transition ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB] shadow-xl'}`}>
-            <div className={`inline-flex items-center gap-2 ${colorThemeClasses.badge} border ${colorThemeClasses.border} px-4 py-1.5 rounded-full text-xs font-bold`}>
-              <Sparkles className="w-4 h-4" />
-              <span>طريقك إلى +A في جميع المقررات الأكاديمية</span>
-            </div>
-
-            <h1 className="text-3xl md:text-5xl font-black leading-tight">
-              منصة <span className={colorThemeClasses.text}>مساري | Masari</span> التعليمية
+            <h1 className="text-3xl md:text-5xl font-black leading-tight text-white">
+              <span className="text-[#2563EB]">مساري | Masari</span>
             </h1>
 
             <p className="text-sm md:text-base max-w-2xl mx-auto text-slate-400 leading-relaxed">
@@ -593,18 +548,18 @@ export default function Home() {
                 placeholder="ابحث باسم المادة، رمز المقرر، أو اسم الدكتور..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full border rounded-2xl pr-12 pl-4 py-3.5 text-sm focus:outline-none transition shadow-sm ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-[#F8FAFC] border-[#E5E7EB] text-[#111827]'}`}
+                className={`w-full border rounded-2xl pr-12 pl-4 py-3.5 text-sm focus:outline-none focus:border-[#2563EB] transition ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-[#F8FAFC] border-[#E5E7EB] text-[#111827]'}`}
               />
             </div>
 
-            {/* الأزرار المطورة المطلوبة */}
+            {/* الأزرار الخمسة المطلوبة فقط بدون أي فلاتر مكررة تحتها */}
             <div className="flex flex-wrap justify-center gap-2.5 pt-2">
               {[
-                { id: 'bestseller', label: 'الأكثر مبيعاً', icon: Flame },
-                { id: 'courses', label: 'الدورات', icon: PlayCircle },
-                { id: 'summaries', label: 'الملخصات', icon: FileText },
-                { id: 'books', label: 'الكتب', icon: BookOpen },
-                { id: 'quizzes', label: 'الاختبارات', icon: ClipboardList },
+                { id: 'bestseller' as const, label: 'الأكثر مبيعاً', icon: Flame },
+                { id: 'courses' as const, label: 'الدورات', icon: PlayCircle },
+                { id: 'summaries' as const, label: 'الملخصات', icon: FileText },
+                { id: 'books' as const, label: 'الكتب', icon: BookOpen },
+                { id: 'quizzes' as const, label: 'الاختبارات', icon: ClipboardList },
               ].map((btn) => {
                 const Icon = btn.icon;
                 return (
@@ -613,8 +568,8 @@ export default function Home() {
                     onClick={() => setActiveTabSection(btn.id)}
                     className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 border ${
                       activeTabSection === btn.id
-                        ? `${colorThemeClasses.primary} text-white shadow-lg`
-                        : darkMode ? 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-lg shadow-blue-500/20'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -623,26 +578,9 @@ export default function Home() {
                 );
               })}
             </div>
-
-            {/* تصنيفات المواد الأصغر */}
-            <div className="flex flex-wrap justify-center gap-2 pt-2 border-t border-slate-800/40">
-              {['الكل', 'مواد رياض', 'مواد فيز', 'مواد تقن', 'أمن معلومات / سايبر'].map((sub) => (
-                <button
-                  key={sub}
-                  onClick={() => setSelectedSubject(sub)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition ${
-                    selectedSubject === sub
-                      ? `${colorThemeClasses.primary} text-white`
-                      : 'bg-slate-800/40 text-slate-400 border border-slate-700/50'
-                  }`}
-                >
-                  {sub}
-                </button>
-              ))}
-            </div>
           </section>
 
-          {/* الإحصائيات */}
+          {/* إحصائيات المنصة */}
           <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: 'مقرر تعليمي', value: platformStats.coursesCount || courses.length, icon: <BookOpen className="w-5 h-5" /> },
@@ -651,7 +589,7 @@ export default function Home() {
               { label: 'دكتور ومدرس', value: platformStats.instructorsCount, icon: <Award className="w-5 h-5" /> },
             ].map((stat) => (
               <div key={stat.label} className={`rounded-2xl p-5 border text-center space-y-2 transition ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
-                <div className={`w-10 h-10 rounded-xl ${colorThemeClasses.badge} flex items-center justify-center mx-auto`}>
+                <div className="w-10 h-10 rounded-xl bg-[#2563EB]/10 text-[#2563EB] flex items-center justify-center mx-auto">
                   {stat.icon}
                 </div>
                 <div className="text-2xl font-black">{stat.value}+</div>
@@ -660,45 +598,49 @@ export default function Home() {
             ))}
           </section>
 
-          {/* المقررات */}
+          {/* المقررات المتاحة مفلترة حسب الأزرار الخمسة */}
           {!loadingCourses && (
-            <div className="space-y-12">
-              {bestSellers.length > 0 && (
-                <section className="space-y-5">
-                  <h2 className="text-xl font-black flex items-center gap-2">
-                    <Flame className="w-5 h-5 text-red-500" />
-                    المقررات المتاحة ({filteredCourses.length})
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {bestSellers.map((course) => <CourseCard key={course.id} course={course} />)}
-                  </div>
-                </section>
+            <div className="space-y-6">
+              <h2 className="text-xl font-black flex items-center gap-2">
+                <Flame className="w-5 h-5 text-[#2563EB]" />
+                المحتوى المتاح ({displayCourses.length})
+              </h2>
+              {displayCourses.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {displayCourses.map((course) => <CourseCard key={course.id} course={course} />)}
+                </div>
+              ) : (
+                <div className="p-12 text-center text-slate-500 bg-slate-900 border border-slate-800 rounded-3xl text-xs">
+                  لا يوجد محتوى في هذا القسم حالياً.
+                </div>
               )}
             </div>
           )}
 
-          {/* آراء الطلاب */}
-          <section className="space-y-6">
-            <h2 className="text-xl font-black flex items-center gap-2">
-              <Heart className="w-5 h-5 text-red-500" />
-              آراء الطلاب
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {testimonials.map((t) => (
-                <div key={t.id} className={`rounded-3xl p-6 border space-y-4 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
-                  <Quote className="w-6 h-6 text-blue-500/30" />
-                  <p className="text-sm text-slate-300 leading-relaxed">{t.text}</p>
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                    <div>
-                      <p className="text-xs font-bold">{t.name}</p>
-                      {t.role && <p className="text-[10px] text-slate-400">{t.role}</p>}
+          {/* آراء الطلاب الحقيقية فقط */}
+          {realTestimonials.length > 0 && (
+            <section className="space-y-6">
+              <h2 className="text-xl font-black flex items-center gap-2">
+                <Heart className="w-5 h-5 text-red-500" />
+                آراء الطلاب
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {realTestimonials.map((t) => (
+                  <div key={t.id} className={`rounded-3xl p-6 border space-y-4 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
+                    <Quote className="w-6 h-6 text-blue-500/30" />
+                    <p className="text-sm text-slate-300 leading-relaxed">{t.text}</p>
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                      <div>
+                        <p className="text-xs font-bold">{t.name}</p>
+                        {t.role && <p className="text-[10px] text-slate-400">{t.role}</p>}
+                      </div>
+                      {typeof t.rating === 'number' && <StarRating rating={t.rating} />}
                     </div>
-                    {typeof t.rating === 'number' && <StarRating rating={t.rating} />}
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* الأسئلة الشائعة */}
           <section className="space-y-6">
@@ -729,7 +671,7 @@ export default function Home() {
         </main>
       ) : (
 
-        /* مشغل الدرس والمقرر */
+        /* عرض الدرس والمقرر */
         <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
           <div className={`p-5 rounded-3xl border flex flex-col md:flex-row justify-between md:items-center gap-4 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
             <div className="flex items-center gap-4">
@@ -742,15 +684,17 @@ export default function Home() {
               <div>
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   {selectedCourse.title}
-                  {selectedCourse.code && <span className={`${colorThemeClasses.badge} text-xs px-2 py-0.5 rounded-md font-bold`}>{selectedCourse.code}</span>}
+                  {selectedCourse.code && <span className="bg-[#2563EB]/10 text-[#2563EB] text-xs px-2 py-0.5 rounded-md font-bold">{selectedCourse.code}</span>}
                 </h2>
               </div>
             </div>
 
-            <button onClick={() => copyShareLink(selectedCourse.title)} className="bg-slate-800 p-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 text-white">
-              <Copy className="w-4 h-4" />
-              نسخ رابط المادة
-            </button>
+            {!isSubscribedToSelected && (
+              <button onClick={() => addToCart(selectedCourse)} className="bg-[#2563EB] text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5">
+                <ShoppingBag className="w-4 h-4" />
+                إضافة للسلة والدفع
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -768,14 +712,13 @@ export default function Home() {
                       <div className="text-center p-6 space-y-3">
                         <Lock className="w-8 h-8 text-amber-500 mx-auto" />
                         <h3 className="text-lg font-bold text-white">المحتوى محمي ومغلق</h3>
-                        <button onClick={() => addToCart(selectedCourse)} className={`${colorThemeClasses.primary} text-white text-xs font-bold px-5 py-2.5 rounded-xl`}>
+                        <button onClick={() => addToCart(selectedCourse)} className="bg-[#2563EB] text-white text-xs font-bold px-5 py-2.5 rounded-xl">
                           اشترك بـ ({selectedCourse?.price || 0} ر.س) لفتح المحتوى
                         </button>
                       </div>
                     )}
                   </div>
 
-                  {/* تنزيل الملفات الثلاثة المنفصلة */}
                   <div className={`p-6 rounded-3xl border space-y-4 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
                     <h2 className="text-xl font-bold">{selectedLesson.title}</h2>
                     <div className="flex flex-wrap gap-3">
@@ -807,7 +750,7 @@ export default function Home() {
                   <button
                     key={lesson.id}
                     onClick={() => setSelectedLesson(lesson)}
-                    className={`w-full text-right p-3 rounded-xl text-sm flex items-center justify-between gap-2 ${selectedLesson?.id === lesson.id ? `${colorThemeClasses.badge} font-bold` : 'hover:bg-slate-800 text-slate-400'}`}
+                    className={`w-full text-right p-3 rounded-xl text-sm flex items-center justify-between gap-2 ${selectedLesson?.id === lesson.id ? 'bg-[#2563EB]/10 text-[#2563EB] font-bold' : 'hover:bg-slate-800 text-slate-400'}`}
                   >
                     <span>{lesson.title}</span>
                     {!isSubscribedToSelected && !lesson.is_preview && <Lock className="w-3.5 h-3.5 text-slate-500" />}
@@ -851,7 +794,7 @@ export default function Home() {
                     onChange={(e) => setCouponCode(e.target.value)}
                     className="flex-1 border border-slate-800 rounded-xl px-3 py-2 text-xs bg-slate-950 text-white"
                   />
-                  <button onClick={applyCoupon} className={`${colorThemeClasses.primary} text-white px-4 py-2 rounded-xl text-xs font-bold`}>تطبيق</button>
+                  <button onClick={applyCoupon} className="bg-[#2563EB] text-white px-4 py-2 rounded-xl text-xs font-bold">تطبيق</button>
                 </div>
 
                 <div className="flex justify-between border-t border-slate-800 pt-3 font-bold text-sm">
@@ -870,11 +813,11 @@ export default function Home() {
         </div>
       )}
 
-      {/* Masari AI Chat Window */}
+      {/* Masari AI */}
       {showAiBot && (
         <div className="fixed bottom-4 left-4 z-50 w-[92vw] max-w-sm">
           <div className={`rounded-3xl border shadow-2xl overflow-hidden flex flex-col h-[28rem] ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
-            <div className={`${colorThemeClasses.primary} text-white p-4 flex justify-between items-center`}>
+            <div className="bg-[#2563EB] text-white p-4 flex justify-between items-center">
               <span className="font-bold text-sm flex items-center gap-2"><Sparkles className="w-4 h-4" /> Masari AI</span>
               <button onClick={() => setShowAiBot(false)}><X className="w-4 h-4" /></button>
             </div>
@@ -883,7 +826,7 @@ export default function Home() {
                 <p className="text-slate-400 text-center py-6">مرحباً بك! اسألني عن أية مادة وسأساعدك فوراً 👋</p>
               )}
               {aiResponses.map((r, i) => (
-                <div key={i} className={`p-2.5 rounded-xl max-w-[85%] ${r.role === 'user' ? `${colorThemeClasses.primary} text-white mr-auto` : 'ml-auto bg-slate-800 text-white'}`}>
+                <div key={i} className={`p-2.5 rounded-xl max-w-[85%] ${r.role === 'user' ? 'bg-[#2563EB] text-white mr-auto' : 'ml-auto bg-slate-800 text-white'}`}>
                   {r.text}
                 </div>
               ))}
@@ -896,21 +839,21 @@ export default function Home() {
                 placeholder="اسأل عن أي مقرر أو دعم..."
                 className="flex-1 border border-slate-800 rounded-xl px-3 py-2 text-xs bg-slate-950 text-white"
               />
-              <button onClick={handleAiSend} className={`${colorThemeClasses.primary} text-white p-2 rounded-xl`}><Send className="w-4 h-4" /></button>
+              <button onClick={handleAiSend} className="bg-[#2563EB] text-white p-2 rounded-xl"><Send className="w-4 h-4" /></button>
             </div>
           </div>
         </div>
       )}
 
-      {/* التذييل والتواصل */}
+      {/* التذييل بالمعلومات المحدثة بالكامل وزر المشاركة الوحيد الرمادي */}
       <footer className={`mt-16 border-t ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 grid grid-cols-1 md:grid-cols-4 gap-10">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className={`${colorThemeClasses.primary} p-2 rounded-xl text-white`}>
+              <div className="bg-[#2563EB] p-2 rounded-xl text-white">
                 <GraduationCap className="w-5 h-5" />
               </div>
-              <span className={`text-lg font-black ${colorThemeClasses.text}`}>مساري | Masari</span>
+              <span className="text-lg font-black text-[#2563EB]">مساري | Masari</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
               منصة تعليمية متكاملة تقدم شروحات ومقررات وملخصات تساعدك على التفوق الأكاديمي.
@@ -918,31 +861,39 @@ export default function Home() {
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-sm font-bold">روابط سريعة</h4>
-            <ul className="space-y-2 text-xs text-slate-400">
-              <li><button onClick={() => copyShareLink()} className="hover:text-blue-400 transition">مشاركة المنصة</button></li>
-              <li><button onClick={() => setShowAiBot(true)} className="hover:text-blue-400 transition">المساعد الذكي</button></li>
-            </ul>
-          </div>
-
-          <div className="space-y-3">
-            <h4 className="text-sm font-bold">التواصل المباشر مع الدعم</h4>
+            <h4 className="text-sm font-bold text-white">روابط سريعة</h4>
             <ul className="space-y-2 text-xs text-slate-400">
               <li>
-                <a href="https://wa.me/966500000000" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-emerald-400 font-bold hover:underline">
-                  <Phone className="w-3.5 h-3.5" /> محادثة الواتساب المباشرة
-                </a>
+                <button onClick={copyShareLink} className="hover:text-blue-400 transition flex items-center gap-1.5 text-slate-400">
+                  <Copy className="w-3.5 h-3.5" /> مشاركة رابط المنصة
+                </button>
               </li>
               <li>
-                <a href="mailto:support@masari.sa" className="flex items-center gap-2 hover:text-blue-400">
-                  <Mail className="w-3.5 h-3.5" /> support@masari.sa
-                </a>
+                <button onClick={() => setShowAiBot(true)} className="hover:text-blue-400 transition flex items-center gap-1.5 text-slate-400">
+                  <Sparkles className="w-3.5 h-3.5" /> المساعد الذكي
+                </button>
               </li>
             </ul>
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-sm font-bold">الموقع</h4>
+            <h4 className="text-sm font-bold text-white">التواصل المباشر مع الدعم</h4>
+            <ul className="space-y-2 text-xs text-slate-400">
+              <li>
+                <a href="https://wa.me/966550118282" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-emerald-400 font-bold hover:underline">
+                  <Phone className="w-3.5 h-3.5" /> محادثة الواتساب المباشرة (+966 55 011 8282)
+                </a>
+              </li>
+              <li>
+                <a href="mailto:falcon911n@gmail.com" className="flex items-center gap-2 text-slate-300 hover:text-blue-400">
+                  <Mail className="w-3.5 h-3.5" /> falcon911n@gmail.com
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="text-sm font-bold text-white">الموقع</h4>
             <p className="text-xs text-slate-400 flex items-center gap-2">
               <MapPin className="w-3.5 h-3.5" /> الرياض، المملكة العربية السعودية
             </p>
