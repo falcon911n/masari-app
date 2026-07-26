@@ -1,0 +1,70 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Palette, Sun, Moon, Monitor } from 'lucide-react';
+
+export default function ThemeSelector() {
+  const [mode, setMode] = useState<'light' | 'dark' | 'dim'>('dark');
+  const [color, setColor] = useState<'blue' | 'red' | 'purple' | 'green' | 'orange' | 'cyan'>('blue');
+
+  useEffect(() => {
+    const savedMode = (localStorage.getItem('masari_mode') as any) || 'dark';
+    const savedColor = (localStorage.getItem('masari_color') as any) || 'blue';
+    setMode(savedMode);
+    setColor(savedColor);
+    applyTheme(savedMode, savedColor);
+  }, []);
+
+  const applyTheme = (m: string, c: string) => {
+    const root = document.documentElement;
+    root.setAttribute('data-mode', m);
+    root.setAttribute('data-color', c);
+    localStorage.setItem('masari_mode', m);
+    localStorage.setItem('masari_color', c);
+  };
+
+  return (
+    <div className="flex items-center gap-2 bg-slate-900/80 p-2 rounded-2xl border border-slate-800 text-xs">
+      {/* الوضع */}
+      <button
+        onClick={() => { setMode('light'); applyTheme('light', color); }}
+        className={`p-2 rounded-xl transition ${mode === 'light' ? 'bg-white text-black shadow' : 'text-slate-400'}`}
+        title="الوضع الفاتح"
+      >
+        <Sun className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => { setMode('dark'); applyTheme('dark', color); }}
+        className={`p-2 rounded-xl transition ${mode === 'dark' ? 'bg-slate-800 text-blue-400 shadow' : 'text-slate-400'}`}
+        title="الوضع الداكن"
+      >
+        <Moon className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => { setMode('dim'); applyTheme('dim', color); }}
+        className={`p-2 rounded-xl transition ${mode === 'dim' ? 'bg-zinc-900 text-amber-400 shadow' : 'text-slate-400'}`}
+        title="وضع رمادي متوسط"
+      >
+        <Monitor className="w-4 h-4" />
+      </button>
+
+      <div className="h-4 w-[1px] bg-slate-800 mx-1" />
+
+      {/* الألوان الرئيسية */}
+      {[
+        { id: 'blue', bg: 'bg-blue-600' },
+        { id: 'red', bg: 'bg-red-600' },
+        { id: 'purple', bg: 'bg-purple-600' },
+        { id: 'green', bg: 'bg-emerald-600' },
+        { id: 'orange', bg: 'bg-orange-600' },
+        { id: 'cyan', bg: 'bg-cyan-600' },
+      ].map((item) => (
+        <button
+          key={item.id}
+          onClick={() => { setColor(item.id as any); applyTheme(mode, item.id); }}
+          className={`w-5 h-5 rounded-full ${item.bg} transition transform hover:scale-110 ${color === item.id ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-950' : 'opacity-70'}`}
+        />
+      ))}
+    </div>
+  );
+}
