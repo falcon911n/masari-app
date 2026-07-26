@@ -1,10 +1,22 @@
 'use client';
 
+/**
+ * صفحة الملف الشخصي للطالب | Masari Profile
+ * =========================================================
+ * - عرض وتعديل البيانات الشخصية (الاسم، البريد الإجباري، الجوال، تاريخ الميلاد، الجنس، الجامعة).
+ * - نظام آمن لتغيير كلمة المرور عبر Supabase Auth.
+ * - عرض كشف المقررات والدورات المشترك بها والمفعلة بحساب الطالب.
+ * - واجهة تفاعلية متكاملة باللون الداكن وخط Cairo الأكاديمي.
+ */
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Cairo } from 'next/font/google';
-import { User, GraduationCap, ArrowRight, Save, BookOpen, LogOut, CheckCircle, Lock } from 'lucide-react';
+import { 
+  User, Mail, Phone, GraduationCap, ArrowRight, Save, 
+  BookOpen, LogOut, CheckCircle, Lock, Calendar, ShieldCheck, RefreshCw, AlertCircle 
+} from 'lucide-react';
 
 const cairo = Cairo({ subsets: ['arabic'], weight: ['400', '600', '700', '800', '900'] });
 
@@ -15,6 +27,7 @@ export default function ProfilePage() {
   const [savingPass, setSavingPass] = useState(false);
   const [user, setUser] = useState<any>(null);
   
+  // الحقول الشخصية الأساسية
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -23,39 +36,60 @@ export default function ProfilePage() {
   const [university, setUniversity] = useState('جامعة الملك سعود');
   const [mySubs, setMySubs] = useState<any[]>([]);
 
+  // حقول تغيير كلمة المرور
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passMsg, setPassMsg] = useState('');
+  const [passStatus, setPassStatus] = useState<'success' | 'error' | ''>('');
+
+  // رسائل الحفظ العام
   const [msg, setMsg] = useState('');
+  const [msgStatus, setMsgStatus] = useState<'success' | 'error' | ''>('');
 
   useEffect(() => {
-    loadProfile();
+    loadProfileData();
   }, []);
 
-  async function loadProfile() {
+  async function loadProfileData() {
     try {
       setLoading(true);
-      const { data } = await supabase.auth.getUser();
-      if (!data?.user) {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !authData?.user) {
         router.push('/login');
         return;
       }
-      setUser(data.user);
-      setEmail(data.user.email || '');
 
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle();
-      if (profile) {
-        setFullName(profile.full_name || '');
-        setPhone(profile.phone || '');
-        setBirthDate(profile.birth_date || '');
-        setGender(profile.gender || 'غير محدد');
-        setUniversity(profile.university || 'جامعة الملك سعود');
+      setUser(authData.user);
+      setEmail(authData.user.email || '');
+
+      // جلب تفاصيل البروفايل من جدول profiles
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+
+      if (profileData) {
+        setFullName(profileData.full_name || '');
+        setPhone(profileData.phone || '');
+        setBirthDate(profileData.birth_date || '');
+        setGender(profileData.gender || 'غير محدد');
+        setUniversity(profileData.university || 'جامعة الملك سعود');
       }
 
-      const { data: subs } = await supabase.from('subscriptions').select('*, courses(*)').eq('user_id', data.user.id);
-      if (subs) setMySubs(subs.map((s) => s.courses).filter(Boolean));
-    } catch (e) {
-      console.error(e);
+      // جلب الدورات المشترك بها
+      const { data: subsData, error: subsError } = await supabase
+        .from('subscriptions')
+        .select('*, courses(*)')
+        .eq('user_id', authData.user.id);
+
+      if (subsData) {
+        const coursesList = subsData.map((s: any) => s.courses).filter(Boolean);
+        setMySubs(coursesList);
+      }
+    } catch (err) {
+      console.error('Error loading profile:', err);
     } finally {
       setLoading(false);
     }
@@ -63,29 +97,42 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !email.trim()) {
-      alert('الاسم والبريد حقلان إجباريان!');
+    if (!fullName.trim()) {
+      setMsg('الاسم الكامل حقل إجباري!');
+      setMsgStatus('error');
+      return;
+    }
+    if (!email.trim()) {
+      setMsg('البريد الإلكتروني حقل إجباري!');
+      setMsgStatus('error');
       return;
     }
 
     setSaving(true);
+    setMsg('');
     try {
-      await supabase.from('profiles').upsert({
+      const payload = {
         id: user.id,
-        full_name: fullName,
-        email: email,
-        phone: phone || null,
+        full_name: fullName.trim(),
+        email: email.trim(),
+        phone: phone ? phone.trim() : null,
         birth_date: birthDate || null,
-        gender: gender || null,
-        university,
+        gender: gender || 'غير محدد',
+        university: university.trim() || 'جامعة الملك سعود',
         updated_at: new Date().toISOString()
-      });
-      setMsg('تم حفظ وتحديث البيانات الشخصية بنجاح! 🎉');
-    } catch (e) {
-      setMsg('حدث خطأ أثناء الحفظ');
+      };
+
+      const { error } = await supabase.from('profiles').upsert(payload);
+      if (error) throw error;
+
+      setMsg('تم حفظ وتحديث بياناتك الشخصية بنجاح! 🎉');
+      setMsgStatus('success');
+    } catch (err: any) {
+      setMsg(`فشل الحفظ: ${err.message}`);
+      setMsgStatus('error');
     } finally {
       setSaving(false);
-      setTimeout(() => setMsg(''), 3000);
+      setTimeout(() => setMsg(''), 4000);
     }
   };
 
@@ -93,22 +140,28 @@ export default function ProfilePage() {
     e.preventDefault();
     if (!newPassword || newPassword.length < 6) {
       setPassMsg('كلمة المرور يجب ألا تقل عن 6 أحرف');
+      setPassStatus('error');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPassMsg('كلمات المرور غير متطابقة');
+      setPassMsg('كلمات المرور المدخلة غير متطابقة');
+      setPassStatus('error');
       return;
     }
 
     setSavingPass(true);
+    setPassMsg('');
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
+
       setPassMsg('تم تحديث كلمة المرور بنجاح! 🔒');
+      setPassStatus('success');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      setPassMsg(err.message || 'فشل التحديث');
+      setPassMsg(err.message || 'فشل تحديث كلمة المرور');
+      setPassStatus('error');
     } finally {
       setSavingPass(false);
       setTimeout(() => setPassMsg(''), 4000);
@@ -123,8 +176,8 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div dir="rtl" className={`${cairo.className} min-h-screen bg-slate-950 text-white flex items-center justify-center`}>
-        <div className="flex items-center gap-2 animate-pulse font-bold text-sm">
-          <GraduationCap className="w-6 h-6 text-[#2563EB]" /> جاري تحميل الملف الشخصي...
+        <div className="flex items-center gap-3 animate-pulse font-bold text-sm">
+          <RefreshCw className="w-6 h-6 text-[#2563EB] animate-spin" /> جاري تحميل الملف الشخصي وجلسة الطالب...
         </div>
       </div>
     );
@@ -134,6 +187,7 @@ export default function ProfilePage() {
     <div dir="rtl" className={`${cairo.className} min-h-screen bg-slate-950 text-white p-4 md:p-8`}>
       <div className="max-w-4xl mx-auto space-y-6">
         
+        {/* شريط العنوان العلوي */}
         <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl">
           <div className="flex items-center gap-3">
             <button onClick={() => router.push('/')} className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 transition">
@@ -149,45 +203,129 @@ export default function ProfilePage() {
           </button>
         </div>
 
-        {msg && <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2"><CheckCircle className="w-4 h-4" /> {msg}</div>}
+        {/* رسائل التنبيه والنجاح */}
+        {msg && (
+          <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-2 border ${msgStatus === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+            {msgStatus === 'error' ? <AlertCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />} {msg}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* نموذج تعديل البيانات الشخصية الإجبارية والاختيارية */}
           <form onSubmit={handleSaveProfile} className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-            <h2 className="text-sm font-bold pb-2 border-b border-slate-800 text-slate-300">البيانات الإجبارية والاختيارية</h2>
+            <h2 className="text-sm font-bold pb-2 border-b border-slate-800 text-slate-300 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-[#2563EB]" /> بيانات الحساب والملف الشخصي
+            </h2>
             
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 font-bold">الاسم الكامل <span className="text-red-500">*</span></label>
-              <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="اسمك الثلاثي" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none" required />
+              <label className="text-xs text-slate-400 font-bold">الاسم الكامل <span className="text-red-500">* (إجباري)</span></label>
+              <input 
+                type="text" 
+                value={fullName} 
+                onChange={(e) => setFullName(e.target.value)} 
+                placeholder="أدخل اسمك الثلاثي" 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500" 
+                required 
+              />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 font-bold">البريد الإلكتروني <span className="text-red-500">*</span></label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none" required />
+              <label className="text-xs text-slate-400 font-bold">البريد الإلكتروني <span className="text-red-500">* (إجباري)</span></label>
+              <input 
+                type="email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                placeholder="name@example.com" 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500" 
+                required 
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs text-slate-400 font-bold">رقم الجوال <span className="text-slate-500">(اختياري)</span></label>
-                <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XXXXXXXX" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none" />
+                <input 
+                  type="text" 
+                  value={phone} 
+                  onChange={(e) => setPhone(e.target.value)} 
+                  placeholder="05XXXXXXXX" 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500" 
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-slate-400 font-bold">تاريخ الميلاد <span className="text-slate-500">(اختياري)</span></label>
-                <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none" />
+                <input 
+                  type="date" 
+                  value={birthDate} 
+                  onChange={(e) => setBirthDate(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500" 
+                />
               </div>
             </div>
 
-            <button type="submit" disabled={saving} className="w-full bg-[#2563EB] hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-xs transition">
-              <Save className="w-4 h-4 inline ml-1" /> {saving ? 'جاري الحفظ...' : 'حفظ التعديلات الشخصية'}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400 font-bold">الجنس <span className="text-slate-500">(اختياري)</span></label>
+                <select 
+                  value={gender} 
+                  onChange={(e) => setGender(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="غير محدد">تفضيل عدم الإفصاح</option>
+                  <option value="ذكر">ذكر</option>
+                  <option value="أنثى">أنثى</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400 font-bold">الجامعة</label>
+                <input 
+                  type="text" 
+                  value={university} 
+                  onChange={(e) => setUniversity(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500" 
+                />
+              </div>
+            </div>
+
+            <button type="submit" disabled={saving} className="w-full bg-[#2563EB] hover:bg-blue-600 text-white font-bold py-3.5 rounded-xl text-xs transition shadow-lg shadow-blue-500/20">
+              <Save className="w-4 h-4 inline ml-1" /> {saving ? 'جاري الحفظ في القاعدة...' : 'حفظ التعديلات الشخصية'}
             </button>
           </form>
 
+          {/* الجانب الأيمن: تغيير كلمة المرور والمقررات المشترك بها */}
           <div className="space-y-6">
+            
             <form onSubmit={handleUpdatePassword} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3 shadow-xl">
-              <h2 className="text-sm font-bold pb-2 border-b border-slate-800 text-slate-300 flex items-center gap-1.5"><Lock className="w-4 h-4 text-amber-400" /> تغيير كلمة المرور</h2>
-              {passMsg && <p className="text-[11px] font-bold text-amber-400">{passMsg}</p>}
+              <h2 className="text-sm font-bold pb-2 border-b border-slate-800 text-slate-300 flex items-center gap-1.5">
+                <Lock className="w-4 h-4 text-amber-400" /> تغيير كلمة المرور
+              </h2>
+              
+              {passMsg && (
+                <p className={`text-[11px] font-bold ${passStatus === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {passMsg}
+                </p>
+              )}
+
               <div className="space-y-1">
                 <label className="text-[11px] text-slate-400 font-bold">كلمة المرور الجديدة</label>
-                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none" />
+                <input 
+                  type="password" 
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)} 
+                  placeholder="••••••••" 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500" 
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] text-slate-400 font-bold">تأكيد كلمة المرور</label>
+                <input 
+                  type="password" 
+                  value={confirmPassword} 
+                  onChange={(e) => setConfirmPassword(e.target.value)} 
+                  placeholder="••••••••" 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500" 
+                />
               </div>
               <button type="submit" disabled={savingPass} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-2.5 rounded-xl text-xs transition">
                 {savingPass ? 'جاري التحديث...' : 'تحديث كلمة المرور'}
@@ -195,20 +333,23 @@ export default function ProfilePage() {
             </form>
 
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-              <h2 className="text-sm font-bold pb-2 border-b border-slate-800 text-slate-300 flex items-center gap-2"><BookOpen className="w-4 h-4 text-emerald-400" /> المقررات المشترك بها</h2>
+              <h2 className="text-sm font-bold pb-2 border-b border-slate-800 text-slate-300 flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-emerald-400" /> المقررات المشترك بها
+              </h2>
               {mySubs.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
                   {mySubs.map((c) => (
-                    <div key={c.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs">
-                      <p className="font-bold text-white">{c.title}</p>
-                      <span className="text-[10px] text-emerald-400 font-bold">مفعل</span>
+                    <div key={c.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs flex justify-between items-center">
+                      <span className="font-bold text-white truncate max-w-[140px]">{c.title}</span>
+                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">مفعل</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-500 py-4 text-center">لا توجد اشتراكات حالياً.</p>
+                <p className="text-xs text-slate-500 py-4 text-center">لا توجد اشتراكات لدورات حالياً.</p>
               )}
             </div>
+
           </div>
 
         </div>
