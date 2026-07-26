@@ -11,7 +11,7 @@ import {
   LogIn, LogOut, ShoppingBag, Trash2, Star, ChevronRight, ChevronDown,
   Flame, X, Bell, Sun, Moon, Award,
   Users, Video, ClipboardList, Quote, Share2,
-  MapPin, Phone, Mail, Send, Copy, User
+  MapPin, Phone, Mail, Send, Copy, User, Palette
 } from 'lucide-react';
 
 const cairo = Cairo({ subsets: ['arabic'], weight: ['400', '600', '700', '800', '900'] });
@@ -35,6 +35,7 @@ interface Lesson {
   video_url?: string;
   pdf_url?: string;
   is_preview?: boolean;
+  is_published?: boolean;
 }
 
 interface Testimonial {
@@ -44,11 +45,6 @@ interface Testimonial {
   text: string;
   rating?: number;
 }
-
-const FAQ_ITEMS = [
-  { q: 'كيف أشترك في مقرر داخل المنصة؟', a: 'اختر المقرر الذي يناسبك، ثم اضغط على زر "إضافة للسلة"، وبعدها أكمل عملية الدفع لتفعيل الاشتراك.' },
-  { q: 'هل يمكنني مشاهدة الفيديوهات أكثر من مرة؟', a: 'نعم، بعد تفعيل الاشتراك يصبح بإمكانك مشاهدة جميع المحاضرات بلا حدود.' },
-];
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -76,6 +72,7 @@ export default function Home() {
   const [notifications, setNotifications] = useState<any[]>([]);
 
   const [darkMode, setDarkMode] = useState(true);
+  const [themeColor, setThemeColor] = useState<'blue' | 'red' | 'purple' | 'green' | 'black'>('blue');
   const [couponCode, setCouponCode] = useState('');
   const [discountApplied, setDiscountApplied] = useState<{ type: 'percent' | 'fixed'; value: number } | null>(null);
 
@@ -173,7 +170,7 @@ export default function Home() {
 
   async function fetchLessons(courseId: string) {
     try {
-      const { data } = await supabase.from('lessons').select('*').eq('course_id', courseId).order('order_index', { ascending: true });
+      const { data } = await supabase.from('lessons').select('*').eq('course_id', courseId).eq('is_published', true).order('order_index', { ascending: true });
       if (data && data.length > 0) {
         setLessons(data);
         setSelectedLesson(data[0]);
@@ -282,6 +279,29 @@ export default function Home() {
     }
   };
 
+  // تطوير Masari AI الحقيقي للبحث في المقررات والرد بذكاء
+  const handleAiSend = async () => {
+    if (!aiQuery.trim()) return;
+    const query = aiQuery.trim();
+    const newHistory = [...aiResponses, { role: 'user', text: query }];
+    setAiResponses(newHistory);
+    setAiQuery('');
+
+    let reply = 'أهلاً بك! أنا مساعد مساري الذكي. بحثت في المقررات ولم أجد مطابقة دقيقة، تواصل معنا عبر الواتساب للمساعدة.';
+    const q = query.toLowerCase();
+
+    const matched = courses.find(c => c.title.toLowerCase().includes(q) || (c.code && c.code.toLowerCase().includes(q)));
+    if (matched) {
+      reply = `وجدت لك مقرراً مطابقاً: (${matched.title}) - الرمز: ${matched.code || 'مقرر'} - السعر: ${matched.price ? matched.price + ' ر.س' : 'مجاني'}. يمكنك استعراضه من القائمة الرئيسية!`;
+    } else if (q.includes('سعر') || q.includes('اشتراك')) {
+      reply = 'أسعار المقررات موضحة أسفل كل مادة، ويمكنك استخدام كوبون الخصم داخل سلة المشتريات لتخفيض السعر!';
+    } else if (q.includes('دعم') || q.includes('تواصل') || q.includes('واتس')) {
+      reply = 'رقم دعم واتساب المباشر للمنصة هو: +966 55 011 8282 والبريد الإلكتروني falcon911n@gmail.com';
+    }
+
+    setAiResponses([...newHistory, { role: 'bot', text: reply }]);
+  };
+
   const displayCourses = useMemo(() => {
     let list = courses;
     if (searchQuery.trim()) {
@@ -294,6 +314,16 @@ export default function Home() {
 
   const isSubscribedToSelected = selectedCourse ? subscribedCourses.includes(selectedCourse.id) : false;
   const canAccessLesson = selectedLesson ? Boolean(selectedLesson.is_preview || isSubscribedToSelected) : false;
+
+  const colorThemeClasses = useMemo(() => {
+    switch (themeColor) {
+      case 'red': return { primary: 'bg-red-600', text: 'text-red-500', badge: 'bg-red-500/10 text-red-500' };
+      case 'purple': return { primary: 'bg-purple-600', text: 'text-purple-500', badge: 'bg-purple-500/10 text-purple-500' };
+      case 'green': return { primary: 'bg-emerald-600', text: 'text-emerald-500', badge: 'bg-emerald-500/10 text-emerald-500' };
+      case 'black': return { primary: 'bg-zinc-800', text: 'text-zinc-300', badge: 'bg-zinc-800 text-zinc-300' };
+      default: return { primary: 'bg-[#2563EB]', text: 'text-[#2563EB]', badge: 'bg-[#2563EB]/10 text-[#2563EB]' };
+    }
+  }, [themeColor]);
 
   return (
     <div dir="rtl" className={`${cairo.className} min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#F8FAFC] text-[#111827]'}`}>
@@ -309,21 +339,32 @@ export default function Home() {
       <header className={`sticky top-0 z-50 border-b backdrop-blur-md ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-[#E5E7EB]'}`}>
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center gap-4">
           <button onClick={() => { setSelectedCourse(null); setSelectedLesson(null); }} className="flex items-center gap-3 focus:outline-none text-right group">
-            <div className="bg-[#2563EB] p-2.5 rounded-2xl text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
+            <div className={`${colorThemeClasses.primary} p-2.5 rounded-2xl text-white shadow-lg group-hover:scale-105 transition-transform`}>
               <GraduationCap className="w-6 h-6" />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xl font-black text-[#2563EB]">مساري</span>
+              <span className={`text-xl font-black ${colorThemeClasses.text}`}>مساري</span>
               <span className="text-xs font-bold text-slate-400">| Masari</span>
             </div>
           </button>
 
           <div className="flex items-center gap-2 md:gap-3">
+            {/* اختيار الألوان الكونية */}
+            <div className="hidden sm:flex items-center gap-1 bg-slate-800/50 p-1.5 rounded-xl border border-slate-800">
+              {(['blue', 'red', 'purple', 'green', 'black'] as const).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setThemeColor(c)}
+                  className={`w-4 h-4 rounded-full transition transform hover:scale-125 ${c === 'blue' ? 'bg-blue-600' : c === 'red' ? 'bg-red-600' : c === 'purple' ? 'bg-purple-600' : c === 'green' ? 'bg-emerald-600' : 'bg-zinc-800 border border-zinc-600'}`}
+                />
+              ))}
+            </div>
+
             <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-amber-400">
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            {/* زر الإشعارات الفعال والمفتوح */}
+            {/* زر الإشعارات المفتوح والفعال */}
             <button onClick={() => setShowNotifModal(true)} className="relative p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-white hover:border-blue-500 transition">
               <Bell className="w-5 h-5 text-slate-400" />
               {notifications.length > 0 && (
@@ -334,7 +375,7 @@ export default function Home() {
             </button>
 
             <button onClick={() => setShowCartModal(true)} className="relative p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-white">
-              <ShoppingBag className="w-5 h-5 text-[#2563EB]" />
+              <ShoppingBag className={`w-5 h-5 ${colorThemeClasses.text}`} />
               {cart.length > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
                   {cart.length}
@@ -342,18 +383,21 @@ export default function Home() {
               )}
             </button>
 
+            <button onClick={() => setShowAiBot(!showAiBot)} className={`${colorThemeClasses.badge} border px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5`}>
+              <Sparkles className="w-4 h-4" /> <span className="hidden sm:inline">Masari AI</span>
+            </button>
+
             {user ? (
               <div className="flex items-center gap-2">
-                <Link href="/profile" className="flex items-center gap-2 bg-[#2563EB]/10 border border-[#2563EB]/20 text-[#2563EB] px-3.5 py-2 rounded-xl text-xs font-bold">
-                  <User className="w-4 h-4" />
-                  <span className="truncate max-w-[100px]">{user.email?.split('@')[0]}</span>
+                <Link href="/profile" className={`flex items-center gap-2 ${colorThemeClasses.badge} border px-3.5 py-2 rounded-xl text-xs font-bold`}>
+                  <User className="w-4 h-4" /> <span className="truncate max-w-[100px]">{user.email?.split('@')[0]}</span>
                 </Link>
                 <button onClick={handleLogout} className="bg-red-500/10 text-red-400 border border-red-500/20 p-2 rounded-xl text-xs font-bold" title="تسجيل الخروج">
                   <LogOut className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <Link href="/login" className="bg-[#2563EB] text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2">
+              <Link href="/login" className={`${colorThemeClasses.primary} text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-md`}>
                 <LogIn className="w-4 h-4" /> تسجيل الدخول
               </Link>
             )}
@@ -370,7 +414,7 @@ export default function Home() {
       {!selectedCourse ? (
         <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-16">
           <section className={`rounded-3xl p-8 md:p-12 text-center space-y-6 border transition ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB] shadow-xl'}`}>
-            <h1 className="text-3xl md:text-5xl font-black text-[#2563EB]">مساري | Masari</h1>
+            <h1 className={`text-3xl md:text-5xl font-black ${colorThemeClasses.text}`}>مساري | Masari</h1>
             <p className="text-sm md:text-base max-w-2xl mx-auto text-slate-400 leading-relaxed">
               شروحات وافية للمحاضرات، بنوك أسئلة متكاملة، وملخصات مركزة تمكنك من فهم المنهج وتجاوز الاختبارات بنجاح.
             </p>
@@ -400,7 +444,7 @@ export default function Home() {
                     key={btn.id}
                     onClick={() => setActiveTabSection(btn.id as any)}
                     className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 border ${
-                      activeTabSection === btn.id ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-400'
+                      activeTabSection === btn.id ? `${colorThemeClasses.primary} text-white shadow-lg` : 'bg-slate-950 border-slate-800 text-slate-400'
                     }`}
                   >
                     <Icon className="w-4 h-4" /> <span>{btn.label}</span>
@@ -413,19 +457,19 @@ export default function Home() {
           {!loadingCourses && (
             <div className="space-y-6">
               <h2 className="text-xl font-black flex items-center gap-2">
-                <Flame className="w-5 h-5 text-[#2563EB]" /> المحتوى المتاح ({displayCourses.length})
+                <Flame className={`w-5 h-5 ${colorThemeClasses.text}`} /> المحتوى المتاح ({displayCourses.length})
               </h2>
               {displayCourses.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {displayCourses.map((course) => (
                     <div key={course.id} onClick={() => setSelectedCourse(course)} className={`border rounded-3xl p-6 cursor-pointer flex flex-col justify-between space-y-5 shadow-sm hover:shadow-2xl transition ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
                       <div className="space-y-3">
-                        <span className="bg-[#2563EB]/10 text-[#2563EB] text-[11px] font-bold px-2.5 py-1 rounded-lg">{course.code || 'مقرر'}</span>
+                        <span className={`${colorThemeClasses.badge} text-[11px] font-bold px-2.5 py-1 rounded-lg`}>{course.code || 'مقرر'}</span>
                         <h3 className="text-lg font-bold">{course.title}</h3>
                       </div>
                       <div className="pt-4 border-t flex justify-between items-center border-slate-800">
                         <span className="text-base font-black text-[#22C55E]">{course.price ? `${course.price} ر.س` : 'مجاني'}</span>
-                        <span className="bg-[#2563EB]/10 text-[#2563EB] px-3 py-1.5 rounded-xl text-xs font-bold">استعراض</span>
+                        <span className={`${colorThemeClasses.badge} px-3 py-1.5 rounded-xl text-xs font-bold`}>استعراض</span>
                       </div>
                     </div>
                   ))}
@@ -436,7 +480,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* التعليقات الحقيقية من قاعدة البيانات */}
           {realTestimonials.length > 0 && (
             <section className="space-y-6">
               <h2 className="text-xl font-black flex items-center gap-2">
@@ -464,14 +507,25 @@ export default function Home() {
             <h2 className="text-xl font-bold">{selectedCourse.title}</h2>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 aspect-video bg-black rounded-3xl flex items-center justify-center border border-slate-800">
-              {selectedLesson?.video_url ? <iframe src={selectedLesson.video_url} className="w-full h-full" allowFullScreen /> : <p className="text-xs text-slate-500">اختر درساً للمشاهدة</p>}
+            <div className="lg:col-span-2 aspect-video bg-black rounded-3xl flex items-center justify-center border border-slate-800 relative shadow-2xl">
+              {canAccessLesson ? (
+                selectedLesson?.video_url ? <iframe src={selectedLesson.video_url} className="w-full h-full" allowFullScreen /> : <p className="text-xs text-slate-500">لا يوجد فيديو لهذه المحاضرة</p>
+              ) : (
+                <div className="text-center p-6 space-y-3">
+                  <Lock className="w-8 h-8 text-amber-500 mx-auto" />
+                  <h3 className="text-lg font-bold text-white">هذا الدرس مغلق ومحمي</h3>
+                  <button onClick={() => addToCart(selectedCourse)} className={`${colorThemeClasses.primary} text-white text-xs font-bold px-5 py-2.5 rounded-xl`}>
+                    اشترك بالمقرر لفتح المحتوى
+                  </button>
+                </div>
+              )}
             </div>
             <div className={`p-4 rounded-3xl border space-y-3 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
               <h3 className="font-bold text-sm">الدروس ({lessons.length})</h3>
               {lessons.map((l) => (
-                <button key={l.id} onClick={() => setSelectedLesson(l)} className="w-full text-right p-3 rounded-xl text-xs hover:bg-slate-800 text-slate-300">
-                  {l.title}
+                <button key={l.id} onClick={() => setSelectedLesson(l)} className={`w-full text-right p-3 rounded-xl text-xs flex justify-between items-center ${selectedLesson?.id === l.id ? `${colorThemeClasses.badge} font-bold` : 'hover:bg-slate-800 text-slate-300'}`}>
+                  <span>{l.title} {l.is_preview && <span className="text-[10px] text-emerald-400 font-bold mr-1">(معاينة مجانية)</span>}</span>
+                  {!isSubscribedToSelected && !l.is_preview && <Lock className="w-3.5 h-3.5 text-slate-500" />}
                 </button>
               ))}
             </div>
@@ -479,14 +533,12 @@ export default function Home() {
         </main>
       )}
 
-      {/* مودال فتح الإشعارات الحقيقية */}
+      {/* مودال الإشعارات الحقيقية */}
       {showNotifModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className={`border rounded-3xl max-w-md w-full p-6 space-y-4 ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-[#E5E7EB] text-[#111827]'}`}>
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold flex items-center gap-2">
-                <Bell className="w-4 h-4 text-blue-500" /> إشعارات المنصة
-              </h3>
+              <h3 className="text-base font-bold flex items-center gap-2"><Bell className="w-4 h-4 text-blue-500" /> إشعارات المنصة</h3>
               <button onClick={() => setShowNotifModal(false)}>✕</button>
             </div>
             <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -505,30 +557,26 @@ export default function Home() {
         </div>
       )}
 
-      {/* مودال السلة والدفع */}
-      {showCartModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`border rounded-3xl max-w-lg w-full p-6 space-y-6 ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-[#E5E7EB] text-[#111827]'}`}>
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-blue-500" /> سلة المشتريات ({cart.length})</h3>
-              <button onClick={() => setShowCartModal(false)}>✕</button>
+      {/* Masari AI الحقيقي */}
+      {showAiBot && (
+        <div className="fixed bottom-4 left-4 z-50 w-[92vw] max-w-sm">
+          <div className={`rounded-3xl border shadow-2xl overflow-hidden flex flex-col h-[28rem] ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
+            <div className={`${colorThemeClasses.primary} text-white p-4 flex justify-between items-center`}>
+              <span className="font-bold text-sm flex items-center gap-2"><Sparkles className="w-4 h-4" /> Masari AI</span>
+              <button onClick={() => setShowAiBot(false)}><X className="w-4 h-4" /></button>
             </div>
-            {cart.length > 0 ? (
-              <div className="space-y-4">
-                {cart.map((item) => (
-                  <div key={item.id} className="flex justify-between items-center p-3 rounded-2xl border border-slate-800 text-xs bg-slate-950">
-                    <div>
-                      <span className="font-bold block">{item.title}</span>
-                      <span className="text-emerald-400 font-bold">{item.price} ر.س</span>
-                    </div>
-                    <button onClick={() => removeFromCart(item.id)} className="text-red-400 p-1.5"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                ))}
-                <button onClick={handleCheckoutAndPay} className="w-full bg-emerald-600 text-white font-bold py-3 rounded-2xl text-xs">إتمام الدفع وتفعيل الاشتراك</button>
-              </div>
-            ) : (
-              <p className="text-xs text-center py-6 text-slate-500">السلة فارغة حالياً.</p>
-            )}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+              {aiResponses.length === 0 && <p className="text-slate-400 text-center py-6">أهلاً بك! اسألني عن أي مقرر (مثل 101) وسأبحث لك عنه فوراً 👋</p>}
+              {aiResponses.map((r, i) => (
+                <div key={i} className={`p-2.5 rounded-xl max-w-[85%] ${r.role === 'user' ? `${colorThemeClasses.primary} text-white mr-auto` : 'ml-auto bg-slate-800 text-white'}`}>
+                  {r.text}
+                </div>
+              ))}
+            </div>
+            <div className="p-3 border-t border-slate-800 flex gap-2">
+              <input value={aiQuery} onChange={(e) => setAiQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAiSend()} placeholder="اسأل عن مقرر، سعر، أو رمز..." className="flex-1 border border-slate-800 rounded-xl px-3 py-2 text-xs bg-slate-950 text-white" />
+              <button onClick={handleAiSend} className={`${colorThemeClasses.primary} text-white p-2 rounded-xl`}><Send className="w-4 h-4" /></button>
+            </div>
           </div>
         </div>
       )}
