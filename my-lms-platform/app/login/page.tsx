@@ -1,12 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { LogIn, Mail, Lock, GraduationCap, Calculator, BookOpen, PenTool, Compass, Award, Bookmark, ArrowRight } from 'lucide-react';
-import { Cairo } from 'next/font/google';
 
-const cairo = Cairo({ subsets: ['arabic'], weight: ['400', '600', '700', '800', '900'] });
+/**
+ * إصلاحات هذه الصفحة مقارنة بالنسخة الأصلية:
+ * 1) لم تعد الصفحة تستورد خط Cairo بشكل مستقل — الخط موروث الآن من app/layout.tsx
+ *    (كان تحميله من جديد في كل صفحة يضاعف حجم الخطوط المُحمّلة بلا داعٍ).
+ * 2) بعد إنشاء حساب جديد: كانت الرسالة تقول دائماً "يمكنك الآن تسجيل الدخول"
+ *    حتى لو كان تأكيد البريد الإلكتروني مفعّلاً في إعدادات Supabase (وهو الوضع
+ *    الافتراضي)، فيفشل الطالب في الدخول فوراً ويظن أن هناك خطأ بالمنصة.
+ *    الآن: إذا رجعت جلسة فعلية بعد التسجيل يدخل مباشرة، وإلا تظهر رسالة
+ *    واضحة تطلب تأكيد البريد الإلكتروني أولاً.
+ * 3) رسائل الخطأ من Supabase تأتي بالإنجليزية افتراضياً — تمت إضافة ترجمة
+ *    لأشهر الرسائل (بيانات خاطئة / البريد غير مؤكد) لتظهر بالعربية.
+ * 4) تم ربط الصفحة بإعداد "تفعيل التسجيل" من لوحة الأدمن (جدول
+ *    platform_settings)، فإذا أوقفه الأدمن يُخفى خيار إنشاء حساب جديد.
+ */
+
+function translateAuthError(message: string): string {
+  const map: Record<string, string> = {
+    'Invalid login credentials': 'البريد الإلكتروني أو كلمة المرور غير صحيحة',
+    'Email not confirmed': 'يجب تأكيد بريدك الإلكتروني أولاً، تحقق من صندوق الوارد',
+    'User already registered': 'هذا البريد الإلكتروني مسجّل بالفعل، جرّب تسجيل الدخول',
+    'Password should be at least 6 characters': 'كلمة المرور يجب ألا تقل عن 6 أحرف',
+  };
+  return map[message] || message;
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,26 +36,59 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const router = useRouter();
+
+  useEffect(() => {
+    checkRegistrationSetting();
+  }, []);
+
+  async function checkRegistrationSetting() {
+    try {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'registration_enabled')
+        .maybeSingle();
+      if (data && data.value === 'false') {
+        setRegistrationEnabled(false);
+      }
+    } catch (e) {
+      // إذا لم يوجد الإعداد بعد، يبقى التسجيل مفعّلاً افتراضياً
+    }
+  }
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setErrorMsg('');
+    setInfoMsg('');
 
+    if (isSignUp && !registrationEnabled) {
+      setErrorMsg('تسجيل حسابات جديدة متوقف حالياً من قبل إدارة المنصة');
+      return;
+    }
+
+    setLoading(true);
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        alert('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
-        setIsSignUp(false);
+
+        if (data.session) {
+          // تأكيد البريد غير مفعّل في إعدادات Supabase، الجلسة جاهزة فوراً
+          router.push('/');
+        } else {
+          setInfoMsg('تم إنشاء الحساب! تحقق من بريدك الإلكتروني لتأكيده قبل تسجيل الدخول.');
+          setIsSignUp(false);
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         router.push('/');
       }
     } catch (error: any) {
-      setErrorMsg(error.message || 'حدث خطأ أثناء عملية التسجيل');
+      setErrorMsg(translateAuthError(error.message || 'حدث خطأ أثناء عملية التسجيل'));
     } finally {
       setLoading(false);
     }
@@ -53,9 +108,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div dir="rtl" className={`${cairo.className} min-h-screen bg-[#070C18] text-slate-100 flex items-center justify-center p-4 relative overflow-hidden`}>
-      
-      {/* الأشكال والأيقونات التجريدية التعليمية بالخلفية بدلاً من الشخبطات */}
+    <div dir="rtl" className="min-h-screen bg-[#070C18] text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
+
+      {/* الأشكال والأيقونات التجريدية التعليمية بالخلفية */}
       <div className="absolute inset-0 pointer-events-none opacity-10 flex flex-wrap justify-between p-12 overflow-hidden">
         <Calculator className="w-24 h-24 text-blue-400 absolute top-10 right-10 rotate-12" />
         <BookOpen className="w-32 h-32 text-purple-400 absolute bottom-12 left-10 -rotate-12" />
@@ -66,8 +121,8 @@ export default function LoginPage() {
       </div>
 
       <div className="bg-slate-900/90 backdrop-blur-2xl border border-slate-800/80 p-8 rounded-3xl w-full max-w-md space-y-6 shadow-2xl relative z-10">
-        
-        {/* الشعار والحجم الصافي */}
+
+        {/* الشعار */}
         <div className="text-center space-y-3">
           <div className="inline-flex items-center justify-center p-3.5 bg-[#2563EB] rounded-2xl text-white shadow-lg shadow-blue-500/20">
             <GraduationCap className="w-8 h-8" />
@@ -85,6 +140,11 @@ export default function LoginPage() {
         {errorMsg && (
           <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-xs text-center font-bold">
             {errorMsg}
+          </div>
+        )}
+        {infoMsg && (
+          <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 p-3 rounded-xl text-xs text-center font-bold">
+            {infoMsg}
           </div>
         )}
 
@@ -143,7 +203,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#2563EB] hover:bg-blue-600 text-white font-bold py-3.5 rounded-2xl text-xs transition shadow-lg flex items-center justify-center gap-2"
+            className="w-full bg-[#2563EB] hover:bg-blue-600 text-white font-bold py-3.5 rounded-2xl text-xs transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-60"
           >
             <LogIn className="w-4 h-4" />
             {loading ? 'جاري التحقق...' : isSignUp ? 'إنشاء الحساب' : 'الدخول للمنصة'}
@@ -151,15 +211,23 @@ export default function LoginPage() {
         </form>
 
         <div className="text-center space-y-3 pt-2 border-t border-slate-800/80">
-          <button
-            type="button"
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-xs font-bold text-slate-400 hover:text-[#2563EB] transition block mx-auto"
-          >
-            {isSignUp ? 'لديك حساب بالفعل؟ سجل الدخول' : 'ليس لديك حساب؟ أنشئ حساباً جديداً'}
-          </button>
+          {registrationEnabled ? (
+            <button
+              type="button"
+              onClick={() => { setIsSignUp(!isSignUp); setErrorMsg(''); setInfoMsg(''); }}
+              className="text-xs font-bold text-slate-400 hover:text-[#2563EB] transition block mx-auto"
+            >
+              {isSignUp ? 'لديك حساب بالفعل؟ سجل الدخول' : 'ليس لديك حساب؟ أنشئ حساباً جديداً'}
+            </button>
+          ) : (
+            !isSignUp && (
+              <p className="text-[11px] font-bold text-slate-500">
+                تسجيل الحسابات الجديدة متوقف حالياً من قبل إدارة المنصة
+              </p>
+            )
+          )}
 
-          {/* الخيار المطلوب: الدخول كزائر بدلاً من العودة للمنصة */}
+          {/* الدخول كزائر لاستكشاف المقررات المجانية دون تسجيل */}
           <button
             type="button"
             onClick={handleGuestEnter}
