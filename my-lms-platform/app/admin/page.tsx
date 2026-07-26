@@ -1,22 +1,25 @@
 'use client';
 
 /**
- * لوحة تحكم مساري | Masari - الكود الشامل والمطور بالكامل
- * =========================================================
- * - ربط وحفظ حقيقي للمواد والدروس والاختبارات في Supabase والواجهة الرئيسية
- * - ربط المقررات بالقوائم الخمس (الأكثر مبيعاً، الدورات، الملخصات، الكتب، الاختبارات)
- * - منشئ الاختبارات التفاعلية المتقدم (Quiz Builder)
- * - إدارة حسابات الطلاب والتحكم بحالاتهم (نشط / موقوف) وإرسال إشعارات مباشرة
- * - عرض مشتركي كل دورة على حدة مع زر إلغاء الاشتراك
- * - الخصومات والكوبونات المتقدمة مع التواريخ وعدد الاستخدامات وتحديد المواد
- * - إدارة التعليقات الكاملة (نشر تعليق أدمن، رد، تثبيت، إخفاء، حذف)
- * - الإشعارات المستهدفة (للجميع، لدورة معينة، أو لطالب محدد)
- * - إعدادات المنصة والهوية والمظهر التفاعلي والنسخ الاحتياطي
- * - سجل العمليات الإدارية الكامل (Audit Log)
- * - اختيار خلفية لوحة الأدمن (أسود فاخر، داكن Slate، أحمر، أزرق)
+ * لوحة تحكم مساري | Masari - الكود الشامل والعملاق المطور بالكامل
+ * ================================================================
+ * - الإحصائيات الشاملة والأرباح التفصيلية اليومية، الشهرية، والسنوية.
+ * - إضافة ونشر المقررات مع تحديد نوع القسم (الأكثر مبيعاً، الدورات، الملخصات، الكتب، الاختبارات).
+ * - إدارة المقررات (تعديل، نشر، إخفاء، حذف).
+ * - إضافة الدروس والفيديوهات مع الرفع الثلاثي المنفصل للملفات (PDF، ملخص، واجب).
+ * - نظام السحب والإفلات (Drag & Drop) لإعادة ترتيب الدروس داخل المقررات.
+ * - منشئ الاختبارات التفاعلية المتقدم (Quiz Builder) للأسئلة المتعددة وصح وخطأ مع تحديد الوقت.
+ * - إدارة الطلاب والبحث الشامل بينهم، إيقاف/تفعيل الحسابات، والحذف، أو إرسال إشعار مباشر للطالب.
+ * - مشتركو الدورات وعرض كشوفات الطلاب في كل دورة مع إمكانية إزالة الاشتراك.
+ * - نظام الكوبونات والخصومات (نسبة مئوية أو مبلغ ثابت) مع التفعيل والتعطيل والحذف.
+ * - إدارة التعليقات الكاملة (كتابة تعليق أدمن، الرد المباشر، التثبيت، الإخفاء، الحذف).
+ * - الإشعارات التفاعلية المستهدفة (للجميع، لدورة معينة، أو لطالب محدد).
+ * - إعدادات المنصة والهوية العامة (تفعيل التسجيل، الشراء، التعليقات).
+ * - سجل العمليات الإدارية الكامل (Audit Log) لتتبع كافة تحركات الأدمن بالوقت والتاريخ.
+ * - ثيمات خلفيات الأدمن المتعددة (أسود فاخر، داكن Slate، أحمر، أزرق).
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Cairo } from 'next/font/google';
@@ -82,10 +85,10 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loadingAuth, setLoadingAuth] = useState(true);
 
-  // التحكم بخلفية ثيم اللوحة
+  // التحكم في لون وخلفية ثيم اللوحة
   const [bgStyle, setBgStyle] = useState<'black' | 'slate' | 'darkRed' | 'darkBlue'>('black');
 
-  // البيانات من القاعدة
+  // قواعد البيانات والبيانات المشتركة
   const [courses, setCourses] = useState<any[]>([]);
   const [lessons, setLessons] = useState<any[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -123,7 +126,7 @@ export default function AdminPage() {
   const [editAssignmentFile, setEditAssignmentFile] = useState<File | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // سحب وإفلات
+  // سحب وإفلات الدروس
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // منشئ الاختبارات (Quiz Builder)
@@ -296,26 +299,32 @@ export default function AdminPage() {
     return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
   };
 
-  // 1. الإضافة والحفظ الفعلي للمقرر بجدول Supabase
+  // 1. الإضافة والحفظ الفعلي للمقرر بجدول Supabase مع الرد الكامل والآمن
   const handleSaveCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCourseTitle) return;
 
     try {
-      const { data, error } = await supabase.from('courses').insert([{
-        title: newCourseTitle,
-        code: newCourseCode,
-        price: newCoursePrice || 0,
-        original_price: newCourseOrigPrice || 0,
-        instructor: newCourseInst,
-        description: newCourseDesc,
+      const payload = {
+        title: newCourseTitle.trim(),
+        code: newCourseCode ? newCourseCode.trim() : null,
+        price: Number(newCoursePrice) || 0,
+        original_price: Number(newCourseOrigPrice) || 0,
+        instructor: newCourseInst ? newCourseInst.trim() : null,
+        description: newCourseDesc ? newCourseDesc.trim() : null,
         section_type: sectionType,
         is_published: isPublished
-      }]).select();
+      };
 
-      if (error) throw error;
+      const { data, error } = await supabase.from('courses').insert([payload]).select();
 
-      const created = data ? data[0] : { id: Math.random().toString(), title: newCourseTitle, code: newCourseCode, price: newCoursePrice || 0, is_published: isPublished, section_type: sectionType };
+      if (error) {
+        console.error('Supabase Insert Error:', error);
+        alert(`فشل حفظ المقرر في قاعدة البيانات: ${error.message}`);
+        return;
+      }
+
+      const created = data && data.length > 0 ? data[0] : { ...payload, id: Math.random().toString() };
       setCourses([created, ...courses]);
       logAction('إضافة مقرر ونشره بالموقع', newCourseTitle);
       
@@ -327,7 +336,7 @@ export default function AdminPage() {
       setNewCourseDesc('');
       setMsg(`تم حفظ ونشر المقرر (${newCourseTitle}) في قسم [${sectionType}] بنجاح! 🎉`);
     } catch (err: any) {
-      setMsg('حدث خطأ أثناء الحفظ في قاعدة البيانات');
+      alert(`حدث خطأ غير متوقع: ${err.message || 'تأكد من الاتصال بقاعدة البيانات'}`);
     }
   };
 
@@ -347,7 +356,7 @@ export default function AdminPage() {
     setMsg('تم حذف المقرر بنجاح!');
   };
 
-  // 2. إضافة الدرس برفع 3 ملفات منفصلة
+  // 2. إضافة الدرس برفع الملفات الثلاثة المنفصلة
   const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourse || !lessonTitle) return;
@@ -506,7 +515,7 @@ export default function AdminPage() {
     }
   };
 
-  // 4. السحب والإفلات
+  // 4. السحب والإفلات للدروس
   const handleDragStart = (index: number) => setDraggedIndex(index);
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
   const handleDrop = async (index: number) => {
@@ -523,7 +532,7 @@ export default function AdminPage() {
     logAction('إعادة ترتيب الدروس', selectedCourse);
   };
 
-  // 5. الطلاب والتحكم بحساباتهم
+  // 5. إدارة الطلاب والتحكم بحساباتهم
   const toggleStudentActive = async (student: any) => {
     const next = student.is_active === false ? true : false;
     setStudents(students.map(s => s.id === student.id ? { ...s, is_active: next } : s));
@@ -1000,6 +1009,19 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-white block mb-1.5">3. رفع ملف الواجب:</label>
                   <input type="file" accept=".pdf,.doc,.docx" onChange={(e) => setAssignmentFile(e.target.files ? e.target.files[0] : null)} className="text-xs text-slate-400 w-full" />
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2 bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
+                <input
+                  type="checkbox"
+                  id="previewCheck"
+                  checked={isPreview}
+                  onChange={(e) => setIsPreview(e.target.checked)}
+                  className="w-4 h-4 accent-blue-500 rounded"
+                />
+                <label htmlFor="previewCheck" className="text-xs text-slate-300 font-bold cursor-pointer">
+                  اجعل هذا الدرس معاينة مجانية للجميع (Preview)
+                </label>
               </div>
 
               <button type="submit" disabled={loading} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-2xl text-xs transition">
