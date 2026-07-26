@@ -3,7 +3,13 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { LogIn, Mail, Lock, Globe } from 'lucide-react';
+import { LogIn, Mail, Lock, GraduationCap, ArrowRight, Sparkles } from 'lucide-react';
+import { Cairo } from 'next/font/google';
+
+const cairo = Cairo({
+  subsets: ['arabic'],
+  weight: ['400', '600', '700', '800', '900'],
+});
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -23,7 +29,8 @@ export default function LoginPage() {
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        alert('تم إنشاء الحساب بنجاح!');
+        alert('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.');
+        setIsSignUp(false);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -38,35 +45,63 @@ export default function LoginPage() {
 
   // تسجيل بواسطة قوقل
   const handleGoogleLogin = async () => {
+    const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '';
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: typeof window !== 'undefined' ? window.location.origin : '' }
+      options: { 
+        redirectTo: redirectUrl
+      }
     });
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 dir-rtl" dir="rtl">
-      <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl w-full max-w-md space-y-6 shadow-2xl">
+    <div dir="rtl" className={`${cairo.className} min-h-screen bg-[#0F172A] text-slate-100 flex items-center justify-center p-4 relative overflow-hidden`}>
+      
+      {/* خلفية تجميلية ملونة */}
+      <div className="absolute top-1/4 -right-20 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 -left-20 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 p-8 rounded-3xl w-full max-w-md space-y-6 shadow-2xl relative z-10">
         
-        <div className="text-center space-y-2">
-          <div className="bg-blue-600/10 w-12 h-12 rounded-2xl flex items-center justify-center mx-auto text-blue-400 border border-blue-500/20">
-            <LogIn className="w-6 h-6" />
+        {/* العودة للموقع الرئيسي */}
+        <button
+          onClick={() => router.push('/')}
+          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-400 transition mb-2"
+        >
+          <ArrowRight className="w-4 h-4" />
+          العودة للمنصة
+        </button>
+
+        {/* الهيدر والشعار */}
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center justify-center p-3.5 bg-[#2563EB] rounded-2xl text-white shadow-lg shadow-blue-500/20 mb-1">
+            <GraduationCap className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold">{isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}</h1>
-          <p className="text-sm text-slate-400">مرحباً بك في المنصة التعليمية</p>
+          <div>
+            <h1 className="text-2xl font-black text-white flex items-center justify-center gap-1.5">
+              منصة <span className="text-[#2563EB]">مساري</span>
+            </h1>
+            <p className="text-xs font-bold text-slate-400 mt-1 flex items-center justify-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-[#2563EB]" />
+              طريقك إلى +A
+            </p>
+          </div>
+          <p className="text-xs text-slate-400 pt-1">
+            {isSignUp ? 'أنشئ حسابك للوصول إلى الشروحات والملخصات' : 'سجل دخولك لمتابعة دروسك واختباراتك'}
+          </p>
         </div>
 
         {errorMsg && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-xs text-center">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-xs text-center font-bold">
             {errorMsg}
           </div>
         )}
 
-        {/* زر تسجيل قوقل بأيقونة SVG أصلية ومباشرة */}
+        {/* زر تسجيل قوقل */}
         <button
           type="button"
           onClick={handleGoogleLogin}
-          className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium py-3 rounded-xl text-sm transition flex items-center justify-center gap-3"
+          className="w-full bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/80 font-bold py-3.5 rounded-2xl text-xs transition flex items-center justify-center gap-3 shadow-sm hover:border-slate-600"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -91,37 +126,37 @@ export default function LoginPage() {
 
         <div className="flex items-center gap-3 my-4">
           <div className="h-px bg-slate-800 flex-1" />
-          <span className="text-xs text-slate-500">أو عبر البريد</span>
+          <span className="text-[11px] font-bold text-slate-500">أو عبر البريد الإلكتروني</span>
           <div className="h-px bg-slate-800 flex-1" />
         </div>
 
         {/* نموذج البريد وكلمة السر */}
         <form onSubmit={handleAuth} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs text-slate-400">البريد الإلكتروني</label>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5">
-              <Mail className="w-4 h-4 text-slate-500 ml-2 shrink-0" />
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-300">البريد الإلكتروني</label>
+            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-3 focus-within:border-[#2563EB] transition">
+              <Mail className="w-4 h-4 text-slate-500 ml-2.5 shrink-0" />
               <input
                 type="email"
                 placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-transparent w-full text-sm focus:outline-none"
+                className="bg-transparent w-full text-xs focus:outline-none text-white placeholder-slate-600"
                 required
               />
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs text-slate-400">كلمة السر</label>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5">
-              <Lock className="w-4 h-4 text-slate-500 ml-2 shrink-0" />
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-300">كلمة السر</label>
+            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-3 focus-within:border-[#2563EB] transition">
+              <Lock className="w-4 h-4 text-slate-500 ml-2.5 shrink-0" />
               <input
                 type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-transparent w-full text-sm focus:outline-none"
+                className="bg-transparent w-full text-xs focus:outline-none text-white placeholder-slate-600"
                 required
               />
             </div>
@@ -130,8 +165,9 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-xl text-sm transition shadow-lg shadow-blue-600/20"
+            className="w-full bg-[#2563EB] hover:bg-blue-600 text-white font-bold py-3.5 rounded-2xl text-xs transition shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
           >
+            <LogIn className="w-4 h-4" />
             {loading ? 'جاري التحقق...' : isSignUp ? 'إنشاء الحساب' : 'الدخول للمنصة'}
           </button>
         </form>
@@ -140,7 +176,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-xs text-slate-400 hover:text-blue-400 transition"
+            className="text-xs font-bold text-slate-400 hover:text-[#2563EB] transition"
           >
             {isSignUp ? 'لديك حساب بالفعل؟ سجل الدخول' : 'ليس لديك حساب؟ أنشئ حساباً جديداً'}
           </button>
