@@ -3,12 +3,19 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { Cairo } from 'next/font/google';
 import { 
   GraduationCap, Search, BookOpen, PlayCircle, FileText, Lock, Eye, 
   CheckCircle, Sparkles, Heart, ShieldAlert, UserCheck, 
   LogIn, CreditCard, ArrowRight, Bot, ShoppingBag, Trash2, Tag, Star, 
   ChevronRight, Flame, X, Bell, Percent, Sun, Moon
 } from 'lucide-react';
+
+// إعداد خط القاهرة الداعم للغة العربية
+const cairo = Cairo({ 
+  subsets: ['arabic'],
+  weight: ['400', '600', '700', '800', '900'],
+});
 
 interface Course {
   id: string;
@@ -219,7 +226,7 @@ export default function Home() {
   const featuredCourses = filteredCourses.filter((c) => c.is_featured);
 
   return (
-    <div className={`min-h-screen font-sans dir-rtl transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#F8FAFC] text-[#111827]'}`} dir="rtl">
+    <div dir="rtl" className={`${cairo.className} min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#F8FAFC] text-[#111827]'}`}>
       
       {/* الهيدر */}
       <header className={`sticky top-0 z-50 border-b transition-colors backdrop-blur-md ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-[#E5E7EB]'}`}>
@@ -322,7 +329,7 @@ export default function Home() {
               منصة <span className="text-[#2563EB]">مساري | Masari</span> التعليمية
             </h1>
 
-            <p className="text-[#6B7280] dark:text-slate-400 text-sm md:text-base max-w-2xl mx-auto leading-relaxed">
+            <p className={`text-sm md:text-base max-w-2xl mx-auto leading-relaxed ${darkMode ? 'text-slate-400' : 'text-[#6B7280]'}`}>
               شروحات وافية للمحاضرات، بنوك أسئلة متكاملة، وملخصات مركزة تمكنك من فهم المنهج وتجاوز الاختبارات بنجاح.
             </p>
 
@@ -388,7 +395,7 @@ export default function Home() {
                       )}
                     </div>
 
-                    <div className="pt-4 border-t border-[#E5E7EB] dark:border-slate-800 flex justify-between items-center">
+                    <div className={`pt-4 border-t flex justify-between items-center ${darkMode ? 'border-slate-800' : 'border-[#E5E7EB]'}`}>
                       <span className="text-base font-black text-[#22C55E]">
                         {course.price ? `${course.price} ر.س` : 'مجاني'}
                       </span>
@@ -396,7 +403,7 @@ export default function Home() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={(e) => addToCart(course, e)}
-                          className="p-2 bg-[#F8FAFC] dark:bg-slate-800 hover:bg-[#2563EB] hover:text-white text-[#2563EB] border border-[#E5E7EB] dark:border-slate-700 rounded-xl transition"
+                          className={`p-2 border rounded-xl transition ${darkMode ? 'bg-slate-800 text-[#2563EB] border-slate-700 hover:bg-[#2563EB] hover:text-white' : 'bg-[#F8FAFC] text-[#2563EB] border-[#E5E7EB] hover:bg-[#2563EB] hover:text-white'}`}
                           title="إضافة للسلة"
                         >
                           <ShoppingBag className="w-4 h-4" />
@@ -474,7 +481,7 @@ export default function Home() {
               {selectedLesson ? (
                 <>
                   {/* مشغل الفيديو الشغال */}
-                  <div className="bg-black rounded-3xl overflow-hidden border border-[#E5E7EB] dark:border-slate-800 aspect-video flex items-center justify-center relative shadow-2xl">
+                  <div className={`bg-black rounded-3xl overflow-hidden border aspect-video flex items-center justify-center relative shadow-2xl ${darkMode ? 'border-slate-800' : 'border-[#E5E7EB]'}`}>
                     {canAccessLesson ? (
                       selectedLesson.video_url ? (
                         <iframe 
@@ -555,7 +562,7 @@ export default function Home() {
                     className={`w-full text-right p-3 rounded-xl text-sm transition flex items-center justify-between gap-2 ${
                       selectedLesson?.id === lesson.id
                         ? 'bg-[#2563EB]/10 text-[#2563EB] font-bold'
-                        : 'hover:bg-slate-100 text-[#6B7280]'
+                        : darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-[#6B7280]'
                     }`}
                   >
                     <span>{lesson.title}</span>
@@ -572,9 +579,9 @@ export default function Home() {
       {/* مودال السلة وإتمام عملية الدفع */}
       {showCartModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E5E7EB] rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-[#E5E7EB] pb-3">
-              <h3 className="text-lg font-bold flex items-center gap-2 text-[#111827]">
+          <div className={`border rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-[#E5E7EB] text-[#111827]'}`}>
+            <div className={`flex justify-between items-center border-b pb-3 ${darkMode ? 'border-slate-800' : 'border-[#E5E7EB]'}`}>
+              <h3 className="text-lg font-bold flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-[#2563EB]" />
                 سلة المشتريات ({cart.length})
               </h3>
@@ -585,12 +592,12 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
                   {cart.map((item) => (
-                    <div key={item.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border border-[#E5E7EB] text-xs">
+                    <div key={item.id} className={`flex justify-between items-center p-3 rounded-2xl border text-xs ${darkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-[#E5E7EB]'}`}>
                       <div>
-                        <span className="font-bold block text-[#111827]">{item.title}</span>
+                        <span className="font-bold block">{item.title}</span>
                         <span className="text-[#22C55E] font-bold">{item.price} ر.س</span>
                       </div>
-                      <button onClick={() => removeFromCart(item.id)} className="text-[#EF4444] p-1.5 hover:bg-red-50 rounded-lg">
+                      <button onClick={() => removeFromCart(item.id)} className="text-[#EF4444] p-1.5 hover:bg-red-500/10 rounded-lg">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -603,14 +610,14 @@ export default function Home() {
                     placeholder="رمز الكوبون (مثال: MASARI20)"
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value)}
-                    className="flex-1 bg-slate-50 border border-[#E5E7EB] text-[#111827] rounded-xl px-3 py-2 text-xs focus:outline-none"
+                    className={`flex-1 border rounded-xl px-3 py-2 text-xs focus:outline-none ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-[#E5E7EB] text-[#111827]'}`}
                   />
                   <button onClick={applyCoupon} className="bg-[#2563EB] text-white px-4 py-2 rounded-xl text-xs font-bold">
                     تطبيق
                   </button>
                 </div>
 
-                <div className="border-t border-[#E5E7EB] pt-3 space-y-1.5 text-xs">
+                <div className={`border-t pt-3 space-y-1.5 text-xs ${darkMode ? 'border-slate-800' : 'border-[#E5E7EB]'}`}>
                   <div className="flex justify-between text-[#6B7280]">
                     <span>الإجمالي:</span>
                     <span className="text-[#22C55E] font-bold text-sm">{finalTotal} ر.س</span>
