@@ -8,7 +8,7 @@ import {
   GraduationCap, Search, BookOpen, PlayCircle, FileText, Lock,
   Sparkles, Heart, ShieldAlert, LogIn, LogOut, ShoppingBag,
   Trash2, Star, ChevronRight, Flame, X, Bell, Sun, Moon,
-  Quote, Send, User, ClipboardList
+  Quote, Send, User, ClipboardList, Video, Users, Award
 } from 'lucide-react';
 
 interface Course {
@@ -68,47 +68,40 @@ function StarRating({ rating }: { rating: number }) {
 export default function MasariMasterApp() {
   const router = useRouter();
 
-  // حالة النظام والجلسات
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // إدارة المظهر والثيمات الكونية
   const [darkMode, setDarkMode] = useState(true);
   const [themeColor, setThemeColor] = useState<'blue' | 'red' | 'purple' | 'green' | 'black'>('blue');
 
-  // المقررات والدروس
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [subscribedCourses, setSubscribedCourses] = useState<string[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
+  const [totalStudentsCount, setTotalStudentsCount] = useState(0);
+  const [totalLessonsCount, setTotalLessonsCount] = useState(0);
 
-  // البحث والتصنيفات
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTabSection, setActiveTabSection] = useState<'bestseller' | 'courses' | 'summaries' | 'books' | 'quizzes'>('bestseller');
+  const [activeSubFilter, setActiveSubFilter] = useState('الكل');
 
-  // السلة والمشتريات
   const [cart, setCart] = useState<Course[]>([]);
   const [showCartModal, setShowCartModal] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [discountApplied, setDiscountApplied] = useState<{ id?: string; code?: string; type: 'percent' | 'fixed'; value: number } | null>(null);
 
-  // الإشعارات
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
-  // مساعد الذكاء الاصطناعي Masari AI
   const [showAiBot, setShowAiBot] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
   const [aiResponses, setAiResponses] = useState<{ role: string; text: string }[]>([]);
 
-  // آراء الطلاب
   const [realTestimonials, setRealTestimonials] = useState<Testimonial[]>([]);
-
-  // إعدادات المنصة العامة (تُضبط من لوحة الأدمن)
   const [platformSettings, setPlatformSettings] = useState<Record<string, boolean>>({});
 
   const showToast = (msg: string) => {
@@ -119,7 +112,6 @@ export default function MasariMasterApp() {
   useEffect(() => {
     initializeMasterApp();
 
-    // مراقب حقيقي وفوري لحالة المصادقة لمنع اختفاء زر البروفايل أو مشاكل الجلسة
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setUser(session.user);
@@ -147,10 +139,11 @@ export default function MasariMasterApp() {
         fetchMasterCourses(),
         fetchMasterNotifications(),
         fetchMasterTestimonials(),
-        fetchPlatformSettings()
+        fetchPlatformSettings(),
+        fetchStatsCounts()
       ]);
     } catch (err) {
-      console.error('Initialization error:', err);
+      console.error(err);
     } finally {
       setLoadingAuth(false);
       setLoadingCourses(false);
@@ -166,9 +159,7 @@ export default function MasariMasterApp() {
         if (profileData) setProfile(profileData);
         fetchUserSubscriptions(authData.user.id);
       }
-    } catch (e) {
-      console.error('Session check error:', e);
-    }
+    } catch (e) {}
   }
 
   async function fetchUserSubscriptions(userId: string) {
@@ -185,6 +176,16 @@ export default function MasariMasterApp() {
     } catch (e) {
       setCourses([]);
     }
+  }
+
+  async function fetchStatsCounts() {
+    try {
+      const { count: studentsCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+      if (studentsCount !== null) setTotalStudentsCount(studentsCount);
+
+      const { count: lessonsCount } = await supabase.from('lessons').select('*', { count: 'exact', head: true });
+      if (lessonsCount !== null) setTotalLessonsCount(lessonsCount);
+    } catch (e) {}
   }
 
   async function fetchMasterNotifications() {
@@ -290,28 +291,6 @@ export default function MasariMasterApp() {
         return;
       }
 
-      const now = new Date();
-      if (data.start_date && new Date(data.start_date) > now) {
-        showToast('كوبون الخصم لم يبدأ سريانه بعد');
-        return;
-      }
-      if (data.end_date && new Date(data.end_date) < now) {
-        showToast('انتهت صلاحية هذا الكوبون');
-        return;
-      }
-      if (data.max_uses && (data.used_count || 0) >= data.max_uses) {
-        showToast('تم استنفاد عدد مرات استخدام هذا الكوبون');
-        return;
-      }
-      if (data.allowed_courses && Array.isArray(data.allowed_courses) && data.allowed_courses.length > 0) {
-        const cartCourseIds = cart.map((c) => c.id);
-        const hasAllowedCourse = cartCourseIds.some((id) => data.allowed_courses.includes(id));
-        if (!hasAllowedCourse) {
-          showToast('هذا الكوبون غير صالح على المقررات الموجودة في سلتك');
-          return;
-        }
-      }
-
       setDiscountApplied({ id: data.id, code: data.code, type: data.discount_type, value: Number(data.discount_value) });
       showToast(`تم تطبيق الكوبون (${data.code}) بنجاح! 🎉`);
     } catch (e) {
@@ -337,11 +316,6 @@ export default function MasariMasterApp() {
         await supabase.from('subscriptions').insert([{ user_id: user.id, course_id: course.id }]);
       }
 
-      if (discountApplied?.id) {
-        const { data: cpData } = await supabase.from('coupons').select('used_count').eq('id', discountApplied.id).maybeSingle();
-        await supabase.from('coupons').update({ used_count: (cpData?.used_count || 0) + 1 }).eq('id', discountApplied.id);
-      }
-
       showToast('تمت عملية الدفع وتفعيل الاشتراكات بنجاح! 🎉');
       fetchUserSubscriptions(user.id);
       setCart([]);
@@ -360,16 +334,12 @@ export default function MasariMasterApp() {
     setAiResponses(updatedHistory);
     setAiQuery('');
 
-    let reply = 'أهلاً بك! أنا مساعد مساري الذكي. بحثت في أرشيف المقررات ولم أجد مطابقة دقيقة. يمكنك تصفح الأقسام الرئيسية.';
+    let reply = 'أهلاً بك! أنا مساعد مساري الذكي. بحثت في أرشيف المقررات ولم أجد مطابقة دقيقة.';
     const q = query.toLowerCase();
 
     const matchedCourse = courses.find(c => c.title.toLowerCase().includes(q) || (c.code && c.code.toLowerCase().includes(q)));
     if (matchedCourse) {
-      reply = `وجدت لك المقرر المطلوب: (${matchedCourse.title}) - الرمز الأكاديمي: ${matchedCourse.code || 'مقرر'} - السعر: ${matchedCourse.price ? matchedCourse.price + ' ر.س' : 'مجاني'}. يمكنك استعراضه فوراً من القائمة الرئيسية!`;
-    } else if (q.includes('سعر') || q.includes('اشتراك')) {
-      reply = 'أسعار المقررات مبينة أسفل كل مادة، ويمكنك استخدام كوبونات الخصم المتاحة داخل سلة المشتريات.';
-    } else if (q.includes('دعم') || q.includes('تواصل')) {
-      reply = 'للتواصل مع فريق الدعم الفني: البريد الإلكتروني falcon911n@gmail.com أو عبر الواتساب المباشر.';
+      reply = `وجدت لك المقرر المطلوب: (${matchedCourse.title}) - السعر: ${matchedCourse.price ? matchedCourse.price + ' ر.س' : 'مجاني'}.`;
     }
 
     setAiResponses([...updatedHistory, { role: 'bot', text: reply }]);
@@ -381,9 +351,12 @@ export default function MasariMasterApp() {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter((c) => c.title?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q) || c.instructor?.toLowerCase().includes(q));
     }
+    if (activeSubFilter !== 'الكل') {
+      list = list.filter((c) => (c.category || '').toLowerCase().includes(activeSubFilter.replace('مواد ', '').toLowerCase()) || c.title.toLowerCase().includes(activeSubFilter.replace('مواد ', '').toLowerCase()));
+    }
     if (activeTabSection === 'bestseller') return list.slice(0, 6);
     return list.filter((c) => (c.section_type || 'courses') === activeTabSection);
-  }, [courses, searchQuery, activeTabSection]);
+  }, [courses, searchQuery, activeTabSection, activeSubFilter]);
 
   const relevantNotifications = useMemo(() => {
     return notifications.filter((n) => {
@@ -399,11 +372,11 @@ export default function MasariMasterApp() {
 
   const colorThemeClasses = useMemo(() => {
     switch (themeColor) {
-      case 'red': return { primary: 'bg-red-600', text: 'text-red-500', badge: 'bg-red-500/10 text-red-500', border: 'border-red-500/30' };
-      case 'purple': return { primary: 'bg-purple-600', text: 'text-purple-500', badge: 'bg-purple-500/10 text-purple-500', border: 'border-purple-500/30' };
-      case 'green': return { primary: 'bg-emerald-600', text: 'text-emerald-500', badge: 'bg-emerald-500/10 text-emerald-500', border: 'border-emerald-500/30' };
-      case 'black': return { primary: 'bg-zinc-800', text: 'text-zinc-300', badge: 'bg-zinc-800 text-zinc-300', border: 'border-zinc-700' };
-      default: return { primary: 'bg-[#2563EB]', text: 'text-[#2563EB]', badge: 'bg-[#2563EB]/10 text-[#2563EB]', border: 'border-blue-500/30' };
+      case 'red': return { primary: 'bg-red-600', text: 'text-red-500', badge: 'bg-red-500/10 text-red-500' };
+      case 'purple': return { primary: 'bg-purple-600', text: 'text-purple-500', badge: 'bg-purple-500/10 text-purple-500' };
+      case 'green': return { primary: 'bg-emerald-600', text: 'text-emerald-500', badge: 'bg-emerald-500/10 text-emerald-500' };
+      case 'black': return { primary: 'bg-zinc-800', text: 'text-zinc-300', badge: 'bg-zinc-800 text-zinc-300' };
+      default: return { primary: 'bg-[#2563EB]', text: 'text-[#2563EB]', badge: 'bg-[#2563EB]/10 text-[#2563EB]' };
     }
   }, [themeColor]);
 
@@ -418,6 +391,7 @@ export default function MasariMasterApp() {
         </div>
       )}
 
+      {/* الهيدر العلوي */}
       <header className={`sticky top-0 z-50 border-b backdrop-blur-md ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-[#E5E7EB]'}`}>
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center gap-4">
 
@@ -425,25 +399,13 @@ export default function MasariMasterApp() {
             <div className={`${colorThemeClasses.primary} p-2.5 rounded-2xl text-white shadow-lg group-hover:scale-105 transition-transform`}>
               <GraduationCap className="w-6 h-6" />
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className={`text-xl font-black ${colorThemeClasses.text}`}>مساري</span>
-              <span className="text-xs font-bold text-slate-400">| Masari Master</span>
+            <div>
+              <span className="text-[10px] text-slate-400 block font-bold">طريقتك إلى A+</span>
+              <span className={`text-lg font-black ${colorThemeClasses.text}`}>مساري | Masari</span>
             </div>
           </button>
 
           <div className="flex items-center gap-2 md:gap-3">
-
-            <div className="hidden sm:flex items-center gap-1.5 bg-slate-800/60 p-1.5 rounded-2xl border border-slate-800">
-              {(['blue', 'red', 'purple', 'green', 'black'] as const).map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setThemeColor(c)}
-                  className={`w-4 h-4 rounded-full transition transform hover:scale-125 ${c === 'blue' ? 'bg-blue-600' : c === 'red' ? 'bg-red-600' : c === 'purple' ? 'bg-purple-600' : c === 'green' ? 'bg-emerald-600' : 'bg-zinc-800 border border-zinc-600'}`}
-                  title={`تغيير الثيم إلى ${c}`}
-                />
-              ))}
-            </div>
-
             <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-amber-400 hover:scale-105 transition">
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -492,59 +454,108 @@ export default function MasariMasterApp() {
                 <ShieldAlert className="w-4 h-4" /> لوحة الأدمن
               </Link>
             )}
-
           </div>
         </div>
       </header>
 
       {!selectedCourse ? (
-        <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-16">
+        <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-12">
 
-          <section className={`rounded-3xl p-8 md:p-12 text-center space-y-6 border transition ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E5E7EB] shadow-xl'}`}>
-            <h1 className={`text-3xl md:text-5xl font-black ${colorThemeClasses.text}`}>منصة مساري التعليمية | Masari</h1>
-            <p className="text-sm md:text-base max-w-2xl mx-auto text-slate-400 leading-relaxed">
-              شروحات وافية للمحاضرات، بنوك أسئلة متكاملة، وملخصات مركزة تمكنك من فهم المنهج وتجاوز كافة الاختبارات الأكاديمية بنجاح تام.
+          {/* الهيرو الرئيسي المطابق تماماً للصورة الأصلية */}
+          <section className={`rounded-3xl p-8 md:p-12 text-center space-y-6 border transition relative overflow-hidden ${darkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-[#E5E7EB] shadow-xl'}`}>
+            
+            <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5" /> طريقتك إلى A+ في جميع المقررات الأكاديمية
+            </div>
+
+            <h1 className="text-3xl md:text-5xl font-black tracking-tight">
+              منصة <span className="text-[#2563EB]">مساري | Masari</span> التعليمية
+            </h1>
+            <p className="text-xs md:text-sm max-w-2xl mx-auto text-slate-400 leading-relaxed">
+              شروحات وافية للمحاضرات، بنوك أسئلة متكاملة، وملخصات مركزة تمكنك من فهم المنهج وتجاوز الاختبارات بنجاح.
             </p>
 
+            {/* شريط البحث */}
             <div className="max-w-2xl mx-auto relative pt-2">
               <Search className="w-5 h-5 text-slate-500 absolute right-4 top-6" />
               <input
                 type="text"
-                placeholder="ابحث باسم المادة، رمز المقرر، أو اسم الدكتور..."
+                placeholder="ابحث باسم المادة أو رمز المقرر (مثال: ريض 101, فيز 103)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full border rounded-2xl pr-12 pl-4 py-3.5 text-sm focus:outline-none transition ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-[#F8FAFC] border-[#E5E7EB] text-[#111827]'}`}
+                className={`w-full border rounded-2xl pr-12 pl-4 py-3.5 text-xs focus:outline-none transition ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-[#F8FAFC] border-[#E5E7EB] text-[#111827]'}`}
               />
             </div>
 
-            <div className="flex flex-wrap justify-center gap-2.5 pt-2">
+            {/* التصنيفات الرئيسية */}
+            <div className="flex flex-wrap justify-center gap-2 pt-2">
               {[
                 { id: 'bestseller', label: 'الأكثر مبيعاً', icon: Flame },
-                { id: 'courses', label: 'الدورات الأساسية', icon: PlayCircle },
-                { id: 'summaries', label: 'الملخصات المركزة', icon: FileText },
-                { id: 'books', label: 'الكتب والمراجع', icon: BookOpen },
-                { id: 'quizzes', label: 'الاختبارات التفاعلية', icon: ClipboardList },
+                { id: 'courses', label: 'الدورات', icon: PlayCircle },
+                { id: 'summaries', label: 'الملخصات', icon: FileText },
+                { id: 'books', label: 'الكتب', icon: BookOpen },
+                { id: 'quizzes', label: 'الاختبارات', icon: ClipboardList },
               ].map((btn) => {
                 const Icon = btn.icon;
                 return (
                   <button
                     key={btn.id}
                     onClick={() => setActiveTabSection(btn.id as any)}
-                    className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 border ${
-                      activeTabSection === btn.id ? `${colorThemeClasses.primary} text-white shadow-lg` : 'bg-slate-950 border-slate-800 text-slate-400'
+                    className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 border ${
+                      activeTabSection === btn.id ? `${colorThemeClasses.primary} text-white shadow-lg` : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-white'
                     }`}
                   >
-                    <Icon className="w-4 h-4" /> <span>{btn.label}</span>
+                    <Icon className="w-3.5 h-3.5" /> <span>{btn.label}</span>
                   </button>
                 );
               })}
             </div>
+
+            {/* الفلاتر الفرعية */}
+            <div className="flex flex-wrap justify-center gap-2 pt-1">
+              {['الكل', 'مواد رياض', 'مواد فيز', 'مواد تقن', 'أمن معلومات / سايبر'].map((sub) => (
+                <button
+                  key={sub}
+                  onClick={() => setActiveSubFilter(sub)}
+                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition ${
+                    activeSubFilter === sub ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
           </section>
 
+          {/* البطاقات الإحصائية الأربعة تماماً مثل الصورة */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className={`p-6 rounded-3xl border text-center space-y-2 ${darkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
+              <BookOpen className="w-6 h-6 text-blue-500 mx-auto" />
+              <p className="text-2xl font-black text-white">{courses.length}+</p>
+              <span className="text-xs text-slate-400 font-bold">مقرر تعليمي</span>
+            </div>
+            <div className={`p-6 rounded-3xl border text-center space-y-2 ${darkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
+              <Video className="w-6 h-6 text-purple-500 mx-auto" />
+              <p className="text-2xl font-black text-white">{totalLessonsCount}+</p>
+              <span className="text-xs text-slate-400 font-bold">درس ومحاضرة</span>
+            </div>
+            <div className={`p-6 rounded-3xl border text-center space-y-2 ${darkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
+              <Users className="w-6 h-6 text-emerald-500 mx-auto" />
+              <p className="text-2xl font-black text-white">{totalStudentsCount}+</p>
+              <span className="text-xs text-slate-400 font-bold">طالب مسجل</span>
+            </div>
+            <div className={`p-6 rounded-3xl border text-center space-y-2 ${darkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-[#E5E7EB]'}`}>
+              <Award className="w-6 h-6 text-amber-500 mx-auto" />
+              <p className="text-2xl font-black text-white">100%</p>
+              <span className="text-xs text-slate-400 font-bold">دكتور ومدرس</span>
+            </div>
+          </div>
+
+          {/* أحدث الدورات */}
           {!loadingCourses && (
             <div className="space-y-6">
               <h2 className="text-xl font-black flex items-center gap-2">
-                <Flame className={`w-5 h-5 ${colorThemeClasses.text}`} /> المحتوى المتاح بالقسم ({displayCourses.length})
+                <Flame className={`w-5 h-5 ${colorThemeClasses.text}`} /> أحدث الدورات ({displayCourses.length})
               </h2>
               {displayCourses.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -568,7 +579,7 @@ export default function MasariMasterApp() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-500 text-center py-12">لا توجد مقررات مضافة في هذا القسم حالياً.</p>
+                <p className="text-xs text-slate-500 text-center py-12">لا توجد مقررات مطابقة للبحث حالياً.</p>
               )}
             </div>
           )}
@@ -645,6 +656,7 @@ export default function MasariMasterApp() {
         </main>
       )}
 
+      {/* نوافذ الإشعارات والسلة والذكاء الاصطناعي */}
       {showNotifModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className={`border rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-[#E5E7EB] text-[#111827]'}`}>
