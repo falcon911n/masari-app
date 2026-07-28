@@ -1,26 +1,26 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --font-sans: var(--font-cairo), system-ui, sans-serif;
+    
+    /* متغيرات منصة مساري الأسبوعية للمظهر والألوان */
+    --masari-primary: #2563eb;
+    --masari-primary-hover: #1d4ed8;
+    --masari-primary-soft: rgba(37, 99, 235, 0.12);
+    --masari-primary-border: rgba(37, 99, 235, 0.3);
+    --masari-on-primary: #ffffff;
+    --masari-bg: #020617;
+    --masari-surface: #0f172a;
+    --masari-surface-elevated: #0f172a;
+    --masari-border: #1e293b;
+    --masari-text: #f1f5f9;
+    --masari-text-muted: #94a3b8;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    background-color: var(--masari-bg);
+    color: var(--masari-text);
+    font-family: var(--font-sans);
+  }
 }
