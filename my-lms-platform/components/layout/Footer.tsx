@@ -15,8 +15,8 @@ import { cn } from '@/lib/utils'
 /* -------------------------------------------------------------------------- */
 /*                               إعدادات التواصل                             */
 /* -------------------------------------------------------------------------- */
-const CONTACT_EMAIL = 'support@masari.sa'
-const CONTACT_PHONE = '+966500000000'
+const CONTACT_EMAIL = 'falcon702n@gmail.com'
+const CONTACT_PHONE = '0550118282'
 
 interface FooterLink {
   readonly href: string
@@ -25,7 +25,7 @@ interface FooterLink {
 
 const QUICK_LINKS: readonly FooterLink[] = [
   { href: '/', label: 'الرئيسية' },
-  { href: '/#courses', label: 'المقررات' },
+  { href: '/#courses-section', label: 'المقررات' },
   { href: '/profile', label: 'الملف الشخصي' },
 ]
 
@@ -48,7 +48,8 @@ const SOCIAL_LINKS = [
 ] as const
 
 const CONTACT_LINKS = [
-  { href: `https://wa.me/${CONTACT_PHONE.replace('+', '')}`, label: 'واتساب', Icon: MessageCircle },
+  // استبدال الصفر الأول بمفتاح السعودية 966 ليفتح الواتساب مباشرة
+  { href: `https://wa.me/${CONTACT_PHONE.replace(/^0/, '966')}`, label: 'واتساب', Icon: MessageCircle },
   { href: 'https://t.me/masari_support', label: 'تيليجرام', Icon: FaTelegram },
   { href: `mailto:${CONTACT_EMAIL}`, label: 'البريد', Icon: Mail },
 ] as const
@@ -77,7 +78,7 @@ export function Footer() {
   const pathname = usePathname()
 
   // إخفاء الفوتر في صفحات تسجيل الدخول، إنشاء الحساب، ولوحة الأدمن
-  if (['/login', '/register'].includes(pathname) || pathname.startsWith('/admin')) {
+  if (pathname.includes('/login') || pathname.includes('/register') || pathname.startsWith('/admin')) {
     return null
   }
 
@@ -126,7 +127,7 @@ export function Footer() {
                 </div>
               </li>
               <li>
-                <Link href="/support" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary/10 px-4 py-2.5 text-sm font-bold text-primary transition hover:bg-primary hover:text-white">
+                <Link href={`mailto:${CONTACT_EMAIL}`} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary/10 px-4 py-2.5 text-sm font-bold text-primary transition hover:bg-primary hover:text-white">
                   <Mail className="w-4 h-4" /> تواصل معنا
                 </Link>
               </li>
