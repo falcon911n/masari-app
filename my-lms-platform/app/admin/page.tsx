@@ -4,8 +4,9 @@
  * لوحة تحكم مساري | Masari Admin Dashboard
  * =========================================================================
  * تم تحديث الواجهة لتتوافق بشكل كامل مع الثيم الجديد لمنصة مساري (متغيرات CSS).
- * تم تحويل القائمة الجانبية (Sidebar) والبطاقات إلى تصميم Glassmorphism حديث.
- * لم يتم حذف أو تغيير أي منطق برمجي (حماية الـ Admin، Supabase، وغيرها).
+ * إضافة إمكانيات النشر والإخفاء الذكية (Draft Mode).
+ * تطوير منشئ الاختبارات ليدعم الصور والأسئلة الطويلة.
+ * تحسين مشغل روابط اليوتيوب ليدعم الفيديوهات غير المدرجة (Unlisted).
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -15,13 +16,13 @@ import {
   Users, BookOpen, Video, DollarSign, Settings,
   Trash2, PlusCircle, Check, Eye, EyeOff, ShieldAlert, BarChart3, Ticket,
   Bell, Percent, Search, Edit3, X, GripVertical,
-  Palette, History, GraduationCap, RefreshCw, ClipboardList, Plus, MessageSquare, Pin, Send,
-  ChevronRight, LogOut,
-  CheckCircle
+  History, GraduationCap, RefreshCw, ClipboardList, Plus, MessageSquare, Pin, Send,
+  ChevronRight, LogOut, Image as ImageIcon
 } from 'lucide-react';
 
 interface Question {
   question: string;
+  image_url: string; // تم إضافة حقل الصورة للسؤال
   optionA: string;
   optionB: string;
   optionC: string;
@@ -69,8 +70,6 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loadingAuth, setLoadingAuth] = useState(true);
 
-  // إزالة bgStyle القديم والاعتماد على الثيم الأساسي للمنصة (var(--masari-*))
-
   const [courses, setCourses] = useState<any[]>([]);
   const [lessons, setLessons] = useState<any[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -87,13 +86,14 @@ export default function AdminPage() {
   const [newCourseInst, setNewCourseInst] = useState('');
   const [newCourseDesc, setNewCourseDesc] = useState('');
   const [sectionType, setSectionType] = useState<'bestseller' | 'courses' | 'summaries' | 'books' | 'quizzes'>('courses');
-  const [isPublished, setIsPublished] = useState(true);
+  const [isPublished, setIsPublished] = useState(false); // تعديل الافتراضي ليكون مخفي (كمسودة)
 
   // بيانات الدرس والملفات
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonDesc, setLessonDesc] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
   const [isPreview, setIsPreview] = useState(false);
+  const [isLessonPublished, setIsLessonPublished] = useState(false); // إضافة زر النشر للدرس
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [summaryFile, setSummaryFile] = useState<File | null>(null);
   const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
@@ -114,7 +114,7 @@ export default function AdminPage() {
   const [quizTitle, setQuizTitle] = useState('');
   const [quizDuration, setQuizDuration] = useState<number>(30);
   const [questions, setQuestions] = useState<Question[]>([
-    { question: '', optionA: '', optionB: '', optionC: '', optionD: '', correct: 'A' }
+    { question: '', image_url: '', optionA: '', optionB: '', optionC: '', optionD: '', correct: 'A' }
   ]);
 
   // الكوبونات
@@ -244,13 +244,23 @@ export default function AdminPage() {
     showToast('تم تحديث الإعداد بنجاح');
   };
 
+  // تطوير مشغل اليوتيوب ليدعم (Unlisted) و (Shorts) و (Share links)
   const formatYoutubeEmbed = (url: string) => {
     if (!url) return '';
     let videoId = '';
-    if (url.includes('youtu.be/')) videoId = url.split('youtu.be/')[1]?.split('?')[0];
-    else if (url.includes('watch?v=')) videoId = url.split('watch?v=')[1]?.split('&')[0];
-    else if (url.includes('embed/')) return url;
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+    
+    // استخراج المعرف من مختلف أنواع روابط اليوتيوب
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+
+    if (match && match[2].length === 11) {
+      videoId = match[2];
+    } else if (url.includes('shorts/')) {
+      videoId = url.split('shorts/')[1]?.split('?')[0];
+    }
+
+    // إرجاع الرابط بصيغة Embed ليعمل بأمان
+    return videoId ? `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1` : url;
   };
 
   const showToast = (message: string) => {
@@ -272,7 +282,7 @@ export default function AdminPage() {
         instructor: newCourseInst ? newCourseInst.trim() : null,
         description: newCourseDesc ? newCourseDesc.trim() : null,
         section_type: sectionType,
-        is_published: isPublished
+        is_published: isPublished // يعتمد على زر الـ Toggle
       };
 
       const { data, error } = await supabase.from('courses').insert([payload]).select();
@@ -284,7 +294,7 @@ export default function AdminPage() {
 
       const created = data && data.length > 0 ? data[0] : payload;
       setCourses([created, ...courses]);
-      logAction('إضافة مقرر ونشره بالموقع', newCourseTitle);
+      logAction(isPublished ? 'إضافة مقرر ونشره بالموقع' : 'إضافة مقرر كمسودة', newCourseTitle);
 
       setNewCourseTitle('');
       setNewCourseCode('');
@@ -292,7 +302,8 @@ export default function AdminPage() {
       setNewCourseOrigPrice('');
       setNewCourseInst('');
       setNewCourseDesc('');
-      showToast(`تم حفظ المقرر (${newCourseTitle}) في قسم [${sectionType}] بنجاح! 🎉`);
+      setIsPublished(false); // إعادة الافتراضي إلى مسودة
+      showToast(isPublished ? `تم نشر المقرر (${newCourseTitle}) بنجاح! 🎉` : `تم حفظ المقرر (${newCourseTitle}) كمسودة.`);
     } catch (err: any) {
       alert(`خطأ: ${err.message}`);
     }
@@ -303,11 +314,11 @@ export default function AdminPage() {
     setCourses(courses.map(c => c.id === course.id ? { ...c, is_published: nextStatus } : c));
     await supabase.from('courses').update({ is_published: nextStatus }).eq('id', course.id);
     logAction(nextStatus ? 'نشر مقرر' : 'إخفاء مقرر', course.title);
-    showToast(nextStatus ? 'تم نشر المقرر ✅' : 'تم إخفاء المقرر 👁️‍🗨️');
+    showToast(nextStatus ? 'تم نشر المقرر وهو الآن متاح للطلاب ✅' : 'تم إخفاء المقرر عن الطلاب 👁️‍🗨️');
   };
 
   const handleDeleteCourse = async (courseId: string) => {
-    if (!confirm('حذف هذا المقرر نهائياً؟')) return;
+    if (!confirm('هل أنت متأكد من حذف هذا المقرر نهائياً؟ سيتم حذف جميع الفيديوهات المرتبطة به أيضاً.')) return;
     setCourses(courses.filter(c => c.id !== courseId));
     await supabase.from('courses').delete().eq('id', courseId);
     logAction('حذف مقرر', courseId);
@@ -353,7 +364,7 @@ export default function AdminPage() {
         summary_url: uploadedSummaryUrl,
         assignment_url: uploadedAssignmentUrl,
         is_preview: isPreview,
-        is_published: true,
+        is_published: isLessonPublished, // الاعتماد على الـ Toggle الجديد
         order_index: lessons.length + 1
       };
 
@@ -363,16 +374,19 @@ export default function AdminPage() {
         return;
       }
       if (data) setLessons([...lessons, data[0]]);
-      logAction('إضافة درس', lessonTitle);
+      logAction('إضافة مقطع فيديو', lessonTitle);
+      
       setLessonTitle('');
       setLessonDesc('');
       setVideoUrlInput('');
       setIsPreview(false);
+      setIsLessonPublished(false); // إعادة الافتراضي
       setPdfFile(null);
       setSummaryFile(null);
       setAssignmentFile(null);
       setFileInputKey((k) => k + 1);
-      showToast('تم نشر الدرس بنجاح! 🎬');
+      
+      showToast(isLessonPublished ? 'تم نشر الدرس بنجاح! 🎬' : 'تم حفظ الدرس كمسودة مخفية.');
     } catch (e: any) {
       showToast(`حدث خطأ أثناء حفظ الدرس: ${e.message}`);
     } finally {
@@ -401,7 +415,7 @@ export default function AdminPage() {
     setLessons(lessons.map(l => l.id === lesson.id ? { ...l, is_preview: next } : l));
     await supabase.from('lessons').update({ is_preview: next }).eq('id', lesson.id);
     logAction('تعديل معاينة درس', lesson.title);
-    showToast(next ? 'تم تفعيل المعاينة المجانية لهذا المقطع' : 'تم إلغاء المعاينة');
+    showToast(next ? 'تم تفعيل المعاينة المجانية لهذا المقطع' : 'تم إلغاء المعاينة المجانية');
   };
 
   const openEditLesson = (lesson: any) => {
@@ -419,7 +433,7 @@ export default function AdminPage() {
       await supabase.from('lessons').update(updates).eq('id', editingLesson.id);
       setLessons(lessons.map(l => l.id === editingLesson.id ? { ...l, ...updates } : l));
       setEditingLesson(null);
-      showToast('تم تحديث الدرس بنجاح!');
+      showToast('تم تحديث بيانات الدرس بنجاح!');
     } catch (e) {
       showToast('خطأ أثناء التحديث');
     } finally {
@@ -444,9 +458,9 @@ export default function AdminPage() {
     showToast('تم تحديث ترتيب الدروس بنجاح!');
   };
 
-  // 3. منشئ الاختبارات التفاعلية
+  // 3. منشئ الاختبارات التفاعلية (تم تطويره)
   const addQuestionField = () => {
-    setQuestions([...questions, { question: '', optionA: '', optionB: '', optionC: '', optionD: '', correct: 'A' }]);
+    setQuestions([...questions, { question: '', image_url: '', optionA: '', optionB: '', optionC: '', optionD: '', correct: 'A' }]);
   };
 
   const updateQuestionField = (index: number, field: keyof Question, value: string) => {
@@ -476,7 +490,7 @@ export default function AdminPage() {
       logAction('إنشاء اختبار', quizTitle);
       setQuizTitle('');
       setQuizCourseId('');
-      setQuestions([{ question: '', optionA: '', optionB: '', optionC: '', optionD: '', correct: 'A' }]);
+      setQuestions([{ question: '', image_url: '', optionA: '', optionB: '', optionC: '', optionD: '', correct: 'A' }]);
       showToast('تم نشر الاختبار بالمنصة! 📝');
     } catch (err: any) {
       alert(`خطأ: ${err.message}`);
@@ -484,14 +498,14 @@ export default function AdminPage() {
   };
 
   const handleDeleteQuiz = async (id: string) => {
-    if (!confirm('حذف هذا الاختبار؟')) return;
+    if (!confirm('حذف هذا الاختبار نهائياً؟')) return;
     setQuizzes(quizzes.filter((q) => q.id !== id));
     await supabase.from('quizzes').delete().eq('id', id);
     logAction('حذف اختبار', id);
     showToast('تم حذف الاختبار');
   };
 
-  // 4. الطلاب
+  // باقي الدوال للطلاب والكوبونات (كما هي بدون تغيير)
   const filteredStudents = useMemo(() => {
     if (!studentSearch.trim()) return students;
     const q = studentSearch.toLowerCase().trim();
@@ -502,14 +516,14 @@ export default function AdminPage() {
     const next = student.is_active === false ? true : false;
     setStudents(students.map(s => s.id === student.id ? { ...s, is_active: next } : s));
     await supabase.from('profiles').update({ is_active: next }).eq('id', student.id);
-    showToast(next ? 'تم تفعيل الطالب' : 'تم إيقاف الطالب');
+    showToast(next ? 'تم تفعيل حساب الطالب' : 'تم إيقاف حساب الطالب');
   };
 
   const handleDeleteStudent = async (student: any) => {
     if (!confirm('حذف الطالب؟')) return;
     setStudents(students.filter(s => s.id !== student.id));
     await supabase.from('profiles').delete().eq('id', student.id);
-    showToast('تم حذف الطالب');
+    showToast('تم حذف الطالب من قاعدة البيانات');
   };
 
   const quickNotifyStudent = (student: any) => {
@@ -518,18 +532,17 @@ export default function AdminPage() {
     setNotifTargetStudent(student.id);
   };
 
-  // 5. المشتركين
   const courseSubscribers = useMemo(() => {
     if (!subsCourseFilter) return [];
     return subscriptions.filter((s) => s.course_id === subsCourseFilter);
   }, [subscriptions, subsCourseFilter]);
 
   const removeSubscriber = async (sub: any) => {
-    if (!confirm('إزالة الطالب من الدورة؟')) return;
+    if (!confirm('هل تريد إزالة هذا الطالب من الدورة؟ سيفقد إمكانية الوصول لها.')) return;
     setSubscriptions(subscriptions.filter(s => s.id !== sub.id));
     setSubscriptionsCount(Math.max(0, subscriptionsCount - 1));
     await supabase.from('subscriptions').delete().eq('id', sub.id);
-    showToast('تمت إزالة الطالب');
+    showToast('تمت إزالة الطالب من الدورة');
   };
 
   const studentName = (userId: string) => {
@@ -537,7 +550,6 @@ export default function AdminPage() {
     return p?.full_name || p?.email || userId?.slice(0, 8) + '...';
   };
 
-  // 6. الكوبونات
   const handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponCode || !couponVal) return;
@@ -559,7 +571,7 @@ export default function AdminPage() {
       logAction('إضافة كوبون خصم', payload.code);
       setCouponCode('');
       setCouponVal('');
-      showToast('تم إضافة الكوبون! 🎟️');
+      showToast('تم تفعيل الكوبون للطلاب! 🎟️');
     } catch (err: any) {
       alert(`خطأ: ${err.message}`);
     }
@@ -575,7 +587,6 @@ export default function AdminPage() {
     await supabase.from('coupons').delete().eq('id', id);
   };
 
-  // 7. التعليقات
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCommentInput.trim()) return;
@@ -589,7 +600,7 @@ export default function AdminPage() {
       const created = data && data.length > 0 ? data[0] : payload;
       setComments([created, ...comments]);
       setNewCommentInput('');
-      showToast('تم النشر!');
+      showToast('تم النشر بنجاح!');
     } catch (err: any) {
       alert(`خطأ: ${err.message}`);
     }
@@ -619,16 +630,15 @@ export default function AdminPage() {
     setComments(comments.map((x) => x.id === c.id ? { ...x, reply: replyText } : x));
     await supabase.from('comments').update({ reply: replyText }).eq('id', c.id);
     setReplyDrafts({ ...replyDrafts, [c.id]: '' });
-    showToast('تم إرسال الرد بنجاح');
+    showToast('تم إرسال الرد بنجاح للطلاب');
   };
 
-  // 8. الإشعارات
   const handleSendNotif = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!notifTitle || !notifMsg) return;
     const targetId = notifTarget === 'course' ? notifTargetCourse : notifTarget === 'student' ? notifTargetStudent : null;
     if (notifTarget !== 'all' && !targetId) {
-      showToast('يرجى اختيار الدورة أو الطالب المستهدف أولاً');
+      showToast('يرجى تحديد الدورة أو الطالب المستهدف أولاً');
       return;
     }
     try {
@@ -689,7 +699,6 @@ export default function AdminPage() {
     );
   }
 
-  // ستايلات مخصصة للمدخلات داخل لوحة التحكم
   const inputStyle = {
     backgroundColor: 'var(--masari-bg)',
     borderColor: 'var(--masari-border)',
@@ -714,9 +723,9 @@ export default function AdminPage() {
         <nav className="space-y-1.5 flex-1 overflow-y-auto pr-1 custom-scrollbar">
           {[
             { id: 'dashboard', label: 'الإحصائيات والأرباح', icon: BarChart3 },
-            { id: 'add_course', label: 'إضافة محتوى', icon: PlusCircle },
+            { id: 'add_course', label: 'إضافة دورة/مقرر', icon: PlusCircle },
             { id: 'courses', label: 'إدارة المقررات', icon: BookOpen },
-            { id: 'add_lesson', label: 'إدارة المقاطع', icon: Video },
+            { id: 'add_lesson', label: 'إدارة الفيديوهات والمقاطع', icon: Video },
             { id: 'quizzes', label: 'منشئ الاختبارات', icon: ClipboardList },
             { id: 'students', label: 'الطلاب', icon: Users },
             { id: 'subscribers', label: 'الاشتراكات', icon: GraduationCap },
@@ -769,8 +778,8 @@ export default function AdminPage() {
         <div className="max-w-6xl mx-auto space-y-6">
           <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b" style={{ borderColor: 'var(--masari-border)' }}>
             <div>
-              <h2 className="text-2xl font-black">نظرة عامة</h2>
-              <p className="text-xs mt-1" style={{ color: 'var(--masari-text-muted)' }}>إدارة المنصة والتحكم بالمحتوى</p>
+              <h2 className="text-2xl font-black">غرفة العمليات</h2>
+              <p className="text-xs mt-1" style={{ color: 'var(--masari-text-muted)' }}>إدارة المنصة والتحكم الدقيق بالمحتوى</p>
             </div>
           </header>
 
@@ -800,15 +809,16 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* تبويب إنشاء وتجهيز دورة جديدة */}
           {activeTab === 'add_course' && (
             <section className="p-6 md:p-8 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
               <h2 className="text-lg font-black flex items-center gap-2">
-                <PlusCircle className="w-5 h-5" style={{ color: 'var(--masari-primary)' }} /> إضافة محتوى جديد
+                <PlusCircle className="w-5 h-5" style={{ color: 'var(--masari-primary)' }} /> تجهيز دورة / مقرر جديد
               </h2>
               <form onSubmit={handleSaveCourse} className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold" style={{ color: 'var(--masari-text-muted)' }}>القسم:</label>
+                    <label className="text-xs font-bold" style={{ color: 'var(--masari-text-muted)' }}>القسم المستهدف:</label>
                     <select value={sectionType} onChange={(e: any) => setSectionType(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle}>
                       <option value="courses">قسم الدورات الأساسي</option>
                       <option value="bestseller">قسم الأكثر مبيعاً</option>
@@ -823,19 +833,24 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <input type="text" placeholder="رمز المقرر" value={newCourseCode} onChange={(e) => setNewCourseCode(e.target.value)} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
-                  <input type="number" placeholder="السعر" value={newCoursePrice} onChange={(e) => setNewCoursePrice(e.target.value === '' ? '' : Number(e.target.value))} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
-                  <input type="text" placeholder="اسم المحاضر" value={newCourseInst} onChange={(e) => setNewCourseInst(e.target.value)} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
+                  <input type="text" placeholder="رمز المقرر (اختياري)" value={newCourseCode} onChange={(e) => setNewCourseCode(e.target.value)} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
+                  <input type="number" placeholder="السعر (اتركه فارغاً للمجاني)" value={newCoursePrice} onChange={(e) => setNewCoursePrice(e.target.value === '' ? '' : Number(e.target.value))} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
+                  <input type="text" placeholder="اسم المحاضر (اختياري)" value={newCourseInst} onChange={(e) => setNewCourseInst(e.target.value)} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
                 </div>
-                <textarea placeholder="الوصف..." rows={3} value={newCourseDesc} onChange={(e) => setNewCourseDesc(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
+                <textarea placeholder="اكتب وصفاً مفصلاً للمقرر يجذب الطلاب..." rows={4} value={newCourseDesc} onChange={(e) => setNewCourseDesc(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
 
+                {/* زر الإخفاء أو النشر الذكي */}
                 <div className="flex items-center justify-between border rounded-2xl p-4" style={{ borderColor: 'var(--masari-border)', backgroundColor: 'var(--masari-bg)' }}>
-                  <span className="text-xs font-bold" style={{ color: 'var(--masari-text)' }}>نشر المقرر مباشرة بعد الحفظ</span>
+                  <div>
+                    <span className="text-sm font-bold block mb-1" style={{ color: 'var(--masari-text)' }}>حالة النشر: {isPublished ? 'منشور ومرئي للطلاب' : 'مسودة (مخفي)'}</span>
+                    <span className="text-[10px]" style={{ color: 'var(--masari-text-muted)' }}>اتركها مسودة إذا كنت تريد تجهيز المقاطع والفيديوهات لاحقاً.</span>
+                  </div>
                   <Toggle checked={isPublished} onChange={() => setIsPublished(!isPublished)} />
                 </div>
 
-                <button type="submit" className="w-full font-bold py-4 rounded-2xl text-xs transition-transform hover:-translate-y-1 shadow-lg" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
-                  حفظ ونشر المقرر
+                <button type="submit" className="w-full font-bold py-4 rounded-2xl text-xs transition-transform hover:-translate-y-1 shadow-lg flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
+                  <Save className="w-4 h-4"/> 
+                  {isPublished ? 'حفظ ونشر المقرر فوراً' : 'حفظ المقرر كمسودة'}
                 </button>
               </form>
             </section>
@@ -843,21 +858,22 @@ export default function AdminPage() {
 
           {activeTab === 'courses' && (
             <section className="p-6 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
-              <h2 className="text-lg font-black flex items-center gap-2"><BookOpen className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> المقررات ({courses.length})</h2>
+              <h2 className="text-lg font-black flex items-center gap-2"><BookOpen className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> إدارة جميع المقررات ({courses.length})</h2>
               <div className="space-y-3">
                 {courses.map((course) => (
-                  <div key={course.id} className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 p-4 rounded-2xl border text-xs" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
+                  <div key={course.id} className={`flex flex-col md:flex-row md:justify-between md:items-center gap-4 p-4 rounded-2xl border text-xs transition-all ${course.is_published === false ? 'opacity-70' : ''}`} style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
                     <div className="flex flex-col gap-1">
                       <span className="font-bold text-sm" style={{ color: 'var(--masari-text)' }}>{course.title}</span>
-                      <div className="flex gap-2 items-center">
+                      <div className="flex gap-2 items-center mt-1">
                         <span className="text-emerald-500 font-bold">{course.price ? `${course.price} ر.س` : 'مجاني'}</span>
                         <span className="px-2 py-0.5 rounded border" style={{ backgroundColor: 'var(--masari-primary-soft)', color: 'var(--masari-primary)', borderColor: 'var(--masari-primary-border)' }}>{course.section_type}</span>
+                        {course.is_published === false && <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded">مسودة (مخفي)</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 self-end md:self-auto">
-                      <button type="button" onClick={() => togglePublishCourse(course)} className={`px-3 py-2 rounded-xl border text-[10px] font-bold flex items-center gap-1.5 ${course.is_published !== false ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/10' : 'border-red-500/30 text-red-500 bg-red-500/10'}`}>
+                      <button type="button" onClick={() => togglePublishCourse(course)} className={`px-3 py-2 rounded-xl border text-[10px] font-bold flex items-center gap-1.5 ${course.is_published !== false ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white' : 'border-red-500/30 text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-colors'}`}>
                         {course.is_published !== false ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                        {course.is_published !== false ? 'منشور' : 'مخفي'}
+                        {course.is_published !== false ? 'إخفاء الدورة' : 'نشر الدورة'}
                       </button>
                       <button type="button" onClick={() => handleDeleteCourse(course.id)} className="text-red-500 p-2 hover:bg-red-500/10 rounded-xl transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </div>
@@ -867,20 +883,25 @@ export default function AdminPage() {
             </section>
           )}
 
+          {/* تبويب رفع المقاطع والفيديوهات */}
           {activeTab === 'add_lesson' && (
             <section className="p-6 md:p-8 rounded-3xl border space-y-8 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
-              <h2 className="text-lg font-black flex items-center gap-2"><Video className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> إدارة المقاطع والدروس</h2>
-              
+              <div className="border-b pb-4 mb-4" style={{ borderColor: 'var(--masari-border)' }}>
+                <h2 className="text-lg font-black flex items-center gap-2"><Video className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> إدارة المقاطع والفيديوهات</h2>
+                <p className="text-xs mt-2" style={{ color: 'var(--masari-text-muted)' }}>قم برفع روابط اليوتيوب (العادية أو غير المدرجة) وسيتم تحويلها ليعمل كمشغل سينمائي محمي داخل المنصة.</p>
+              </div>
+
               <form onSubmit={handleSaveLesson} className="space-y-5 border-b pb-8" style={{ borderColor: 'var(--masari-border)' }}>
-                <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} required>
-                  <option value="">-- اختر المقرر لإضافة درس --</option>
-                  {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs font-bold focus:outline-none" style={inputStyle} required>
+                  <option value="">-- اختر الدورة التي تريد إضافة المقطع لها --</option>
+                  {courses.map((c) => <option key={c.id} value={c.id}>{c.title} {c.is_published === false ? '(مسودة)' : ''}</option>)}
                 </select>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input type="text" placeholder="عنوان المقطع/الدرس" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} required />
-                  <input type="url" placeholder="رابط يوتيوب" value={videoUrlInput} onChange={(e) => setVideoUrlInput(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
+                  <input type="text" placeholder="عنوان المقطع" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} required />
+                  <input type="url" placeholder="رابط يوتيوب (العادي أو Unlisted)" value={videoUrlInput} onChange={(e) => setVideoUrlInput(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
                 </div>
-                <textarea placeholder="وصف الدرس (اختياري)" rows={2} value={lessonDesc} onChange={(e) => setLessonDesc(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
+                <textarea placeholder="اكتب نبذة أو ملاحظات للطلاب تحت هذا الفيديو..." rows={3} value={lessonDesc} onChange={(e) => setLessonDesc(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-muted/30 p-4 rounded-2xl border" style={{ borderColor: 'var(--masari-border)' }}>
                   <div className="space-y-1.5">
@@ -897,111 +918,147 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between border rounded-2xl p-4" style={{ borderColor: 'var(--masari-border)', backgroundColor: 'var(--masari-bg)' }}>
-                  <span className="text-xs font-bold" style={{ color: 'var(--masari-text)' }}>جعل هذا الدرس معاينة مجانية (Free Preview)</span>
-                  <Toggle checked={isPreview} onChange={() => setIsPreview(!isPreview)} />
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1 flex items-center justify-between border rounded-2xl p-4" style={{ borderColor: 'var(--masari-border)', backgroundColor: 'var(--masari-bg)' }}>
+                    <div>
+                      <span className="text-xs font-bold block" style={{ color: 'var(--masari-text)' }}>مقطع مجاني (للمعاينة)</span>
+                      <span className="text-[9px]" style={{ color: 'var(--masari-text-muted)' }}>يسمح للطلاب بمشاهدته قبل الاشتراك</span>
+                    </div>
+                    <Toggle checked={isPreview} onChange={() => setIsPreview(!isPreview)} />
+                  </div>
+                  
+                  <div className="flex-1 flex items-center justify-between border rounded-2xl p-4" style={{ borderColor: 'var(--masari-border)', backgroundColor: 'var(--masari-bg)' }}>
+                    <div>
+                      <span className="text-xs font-bold block" style={{ color: 'var(--masari-text)' }}>حالة النشر: {isLessonPublished ? 'منشور' : 'مسودة (مخفي)'}</span>
+                      <span className="text-[9px]" style={{ color: 'var(--masari-text-muted)' }}>اخفه إذا لم تكن مستعداً لعرضه الآن</span>
+                    </div>
+                    <Toggle checked={isLessonPublished} onChange={() => setIsLessonPublished(!isLessonPublished)} />
+                  </div>
                 </div>
 
-                <button type="submit" disabled={loading} className="w-full font-bold py-4 rounded-2xl text-xs transition-transform hover:-translate-y-1 shadow-lg disabled:opacity-60" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
-                  {loading ? 'جاري الرفع والحفظ...' : 'حفظ ونشر المقطع'}
+                <button type="submit" disabled={loading} className="w-full font-bold py-4 rounded-2xl text-xs transition-transform hover:-translate-y-1 shadow-lg disabled:opacity-60 flex justify-center gap-2 items-center" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
+                  <Video className="w-4 h-4"/>
+                  {loading ? 'جاري الرفع والحفظ...' : 'حفظ المقطع'}
                 </button>
               </form>
 
+              {/* مقاطع الدورة المحددة */}
               {selectedCourse && (
                 <div className="space-y-4">
-                  <h3 className="text-sm font-bold flex items-center gap-2"><GripVertical className="w-4 h-4"/> ترتيب ومقاطع الدورة الحالية:</h3>
+                  <h3 className="text-sm font-bold flex items-center gap-2"><GripVertical className="w-4 h-4"/> ترتيب ومقاطع الدورة الحالية ({lessons.length}):</h3>
                   <div className="space-y-2.5">
                     {lessons.map((l, idx) => (
                       <div
                         key={l.id} draggable onDragStart={() => handleDragStart(idx)} onDragOver={handleDragOver} onDrop={() => handleDrop(idx)}
-                        className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 p-4 rounded-2xl border text-xs cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors"
+                        className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-3 p-4 rounded-2xl border text-xs cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors ${l.is_published === false ? 'opacity-60' : ''}`}
                         style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}
                       >
                         <div className="flex items-center gap-3">
                           <GripVertical className="w-4 h-4 opacity-50" />
                           <span className="font-bold opacity-50">#{idx + 1}</span>
                           <span className="font-bold text-sm" style={{ color: 'var(--masari-text)' }}>{l.title}</span>
-                          {l.is_preview && <span className="text-[9px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded font-bold">معاينة</span>}
+                          {l.is_preview && <span className="text-[9px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded font-bold">معاينة مفتوحة</span>}
+                          {l.is_published === false && <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded font-bold">مسودة</span>}
                         </div>
                         <div className="flex items-center gap-2 self-end md:self-auto">
                           <button type="button" onClick={() => toggleLessonPreview(l)} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border ${l.is_preview ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-muted text-muted-foreground border-border'}`}>
                             {l.is_preview ? 'إلغاء المعاينة' : 'جعلها معاينة'}
                           </button>
-                          <button type="button" onClick={() => toggleLessonPublish(l)} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border ${l.is_published !== false ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
-                            {l.is_published !== false ? 'منشور' : 'مخفي'}
+                          <button type="button" onClick={() => toggleLessonPublish(l)} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border ${l.is_published !== false ? 'bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500 hover:text-white' : 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500 hover:text-white'}`}>
+                            {l.is_published !== false ? 'إخفاء المقطع' : 'نشر المقطع'}
                           </button>
                           <button type="button" onClick={() => openEditLesson(l)} className="text-blue-500 p-1.5 hover:bg-blue-500/10 rounded-xl" title="تعديل"><Edit3 className="w-4 h-4" /></button>
                           <button type="button" onClick={() => handleDeleteLesson(l.id)} className="text-red-500 p-1.5 hover:bg-red-500/10 rounded-xl" title="حذف"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       </div>
                     ))}
+                    {lessons.length === 0 && <p className="text-xs text-center py-6 opacity-50 font-bold">لا توجد مقاطع مضافة لهذه الدورة حتى الآن.</p>}
                   </div>
                 </div>
               )}
             </section>
           )}
 
+          {/* منشئ الاختبارات المطور */}
           {activeTab === 'quizzes' && (
             <section className="p-6 md:p-8 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
-              <h2 className="text-lg font-black flex items-center gap-2"><ClipboardList className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> منشئ الاختبارات التفاعلية</h2>
+              <div className="border-b pb-4 mb-4" style={{ borderColor: 'var(--masari-border)' }}>
+                <h2 className="text-lg font-black flex items-center gap-2"><ClipboardList className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> منشئ الاختبارات المتقدم</h2>
+                <p className="text-xs mt-2" style={{ color: 'var(--masari-text-muted)' }}>أضف أسئلة طويلة، صور توضيحية، وخيارات متعددة لاختبارات الطلاب.</p>
+              </div>
+
               <form onSubmit={handleCreateQuiz} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <select value={quizCourseId} onChange={(e) => setQuizCourseId(e.target.value)} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} required>
-                    <option value="">-- اختر المقرر --</option>
+                  <select value={quizCourseId} onChange={(e) => setQuizCourseId(e.target.value)} className="border rounded-2xl p-3.5 text-xs font-bold focus:outline-none" style={inputStyle} required>
+                    <option value="">-- اختر المقرر للاختبار --</option>
                     {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                   </select>
-                  <input type="text" placeholder="عنوان الاختبار" value={quizTitle} onChange={(e) => setQuizTitle(e.target.value)} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} required />
-                  <input type="number" placeholder="مدة الاختبار (دقيقة)" value={quizDuration} onChange={(e) => setQuizDuration(Number(e.target.value) || 30)} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
+                  <input type="text" placeholder="عنوان الاختبار (مثال: اختبار الميدتيرم)" value={quizTitle} onChange={(e) => setQuizTitle(e.target.value)} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} required />
+                  <input type="number" placeholder="مدة الاختبار بالدقائق (مثال: 30)" value={quizDuration} onChange={(e) => setQuizDuration(Number(e.target.value) || 30)} className="border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {questions.map((q, idx) => (
-                    <div key={idx} className="border rounded-3xl p-5 space-y-4" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
+                    <div key={idx} className="border rounded-3xl p-6 space-y-5 relative shadow-sm" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
                       <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold px-3 py-1 rounded-lg" style={{ backgroundColor: 'var(--masari-primary-soft)', color: 'var(--masari-primary)' }}>السؤال #{idx + 1}</span>
+                        <span className="text-sm font-black px-3 py-1 rounded-lg" style={{ backgroundColor: 'var(--masari-primary-soft)', color: 'var(--masari-primary)' }}>السؤال #{idx + 1}</span>
                         {questions.length > 1 && (
-                          <button type="button" onClick={() => removeQuestionField(idx)} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                          <button type="button" onClick={() => removeQuestionField(idx)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                         )}
                       </div>
-                      <input type="text" placeholder="نص السؤال" value={q.question} onChange={(e) => updateQuestionField(idx, 'question', e.target.value)} className="w-full border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle} required />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <input type="text" placeholder="الخيار A" value={q.optionA} onChange={(e) => updateQuestionField(idx, 'optionA', e.target.value)} className="border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle} />
-                        <input type="text" placeholder="الخيار B" value={q.optionB} onChange={(e) => updateQuestionField(idx, 'optionB', e.target.value)} className="border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle} />
-                        <input type="text" placeholder="الخيار C" value={q.optionC} onChange={(e) => updateQuestionField(idx, 'optionC', e.target.value)} className="border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle} />
-                        <input type="text" placeholder="الخيار D" value={q.optionD} onChange={(e) => updateQuestionField(idx, 'optionD', e.target.value)} className="border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle} />
+                      
+                      {/* دعم نص السؤال الطويل */}
+                      <textarea placeholder="اكتب نص السؤال هنا (يدعم الأسئلة الطويلة أو المسائل)..." rows={3} value={q.question} onChange={(e) => updateQuestionField(idx, 'question', e.target.value)} className="w-full border rounded-xl p-4 text-sm focus:outline-none" style={inputStyle} required />
+                      
+                      {/* دعم الصور في السؤال */}
+                      <div className="relative">
+                        <ImageIcon className="absolute right-4 top-3.5 w-4 h-4 opacity-40" />
+                        <input type="url" placeholder="رابط صورة توضيحية للسؤال (اختياري)" value={q.image_url} onChange={(e) => updateQuestionField(idx, 'image_url', e.target.value)} className="w-full border rounded-xl pr-10 pl-4 py-3 text-xs focus:outline-none" style={inputStyle} />
                       </div>
-                      <select value={q.correct} onChange={(e) => updateQuestionField(idx, 'correct', e.target.value)} className="border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle}>
-                        <option value="A">الإجابة الصحيحة: A</option>
-                        <option value="B">الإجابة الصحيحة: B</option>
-                        <option value="C">الإجابة الصحيحة: C</option>
-                        <option value="D">الإجابة الصحيحة: D</option>
-                      </select>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center gap-2"><span className="font-bold text-xs w-6">A)</span> <input type="text" placeholder="الخيار الأول" value={q.optionA} onChange={(e) => updateQuestionField(idx, 'optionA', e.target.value)} className="w-full border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle} required /></div>
+                        <div className="flex items-center gap-2"><span className="font-bold text-xs w-6">B)</span> <input type="text" placeholder="الخيار الثاني" value={q.optionB} onChange={(e) => updateQuestionField(idx, 'optionB', e.target.value)} className="w-full border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle} required /></div>
+                        <div className="flex items-center gap-2"><span className="font-bold text-xs w-6">C)</span> <input type="text" placeholder="الخيار الثالث" value={q.optionC} onChange={(e) => updateQuestionField(idx, 'optionC', e.target.value)} className="w-full border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle} /></div>
+                        <div className="flex items-center gap-2"><span className="font-bold text-xs w-6">D)</span> <input type="text" placeholder="الخيار الرابع" value={q.optionD} onChange={(e) => updateQuestionField(idx, 'optionD', e.target.value)} className="w-full border rounded-xl p-3 text-xs focus:outline-none" style={inputStyle} /></div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 pt-3 border-t" style={{ borderColor: 'var(--masari-border)' }}>
+                        <span className="text-xs font-bold" style={{ color: 'var(--masari-text-muted)' }}>أين الإجابة الصحيحة؟</span>
+                        <select value={q.correct} onChange={(e) => updateQuestionField(idx, 'correct', e.target.value)} className="border rounded-xl p-2.5 text-xs font-bold focus:outline-none" style={inputStyle}>
+                          <option value="A">الخيار A هو الصحيح</option>
+                          <option value="B">الخيار B هو الصحيح</option>
+                          <option value="C">الخيار C هو الصحيح</option>
+                          <option value="D">الخيار D هو الصحيح</option>
+                        </select>
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button type="button" onClick={addQuestionField} className="flex-1 border font-bold py-3.5 rounded-2xl text-xs flex justify-center items-center gap-2 hover:bg-muted" style={{ borderColor: 'var(--masari-border)', color: 'var(--masari-text)' }}>
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                  <button type="button" onClick={addQuestionField} className="flex-1 border font-bold py-4 rounded-2xl text-xs flex justify-center items-center gap-2 transition-colors hover:bg-muted" style={{ borderColor: 'var(--masari-border)', color: 'var(--masari-text)' }}>
                     <Plus className="w-4 h-4" /> إضافة سؤال جديد
                   </button>
-                  <button type="submit" className="flex-1 font-bold py-3.5 rounded-2xl text-xs text-white shadow-lg" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
-                    حفظ ونشر الاختبار
+                  <button type="submit" className="flex-1 font-bold py-4 rounded-2xl text-xs shadow-lg transition-transform hover:-translate-y-1 flex justify-center items-center gap-2" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
+                    <Save className="w-4 h-4"/> حفظ ونشر الاختبار
                   </button>
                 </div>
               </form>
 
-              <div className="pt-6 border-t space-y-3" style={{ borderColor: 'var(--masari-border)' }}>
-                <h3 className="text-sm font-bold">الاختبارات المنشورة ({quizzes.length})</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="pt-8 border-t space-y-4 mt-8" style={{ borderColor: 'var(--masari-border)' }}>
+                <h3 className="text-sm font-bold flex items-center gap-2"><ClipboardList className="w-4 h-4"/> الاختبارات المنشورة حالياً ({quizzes.length})</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {quizzes.map((qz) => (
-                    <div key={qz.id} className="flex justify-between items-center p-4 rounded-2xl border text-xs" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
+                    <div key={qz.id} className="flex justify-between items-center p-5 rounded-2xl border text-xs shadow-sm transition-colors hover:border-primary/40" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
                       <div>
-                        <span className="font-bold block mb-1">{qz.title}</span>
-                        <span className="text-[10px]" style={{ color: 'var(--masari-text-muted)' }}>{Array.isArray(qz.questions) ? qz.questions.length : 0} سؤال - {qz.duration_minutes} دقيقة</span>
+                        <span className="font-bold text-sm block mb-1 text-primary">{qz.title}</span>
+                        <span className="text-[10px] font-bold" style={{ color: 'var(--masari-text-muted)' }}>يحتوي {Array.isArray(qz.questions) ? qz.questions.length : 0} أسئلة | المدة: {qz.duration_minutes} دقيقة</span>
                       </div>
-                      <button type="button" onClick={() => handleDeleteQuiz(qz.id)} className="text-red-500 p-2 hover:bg-red-500/10 rounded-xl"><Trash2 className="w-4 h-4" /></button>
+                      <button type="button" onClick={() => handleDeleteQuiz(qz.id)} className="text-red-500 p-2 hover:bg-red-500/10 rounded-xl transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ))}
+                  {quizzes.length === 0 && <p className="text-xs opacity-50 font-bold p-4">لا توجد اختبارات منشورة.</p>}
                 </div>
               </div>
             </section>
@@ -1009,7 +1066,7 @@ export default function AdminPage() {
 
           {activeTab === 'students' && (
             <section className="p-6 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
-              <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+              <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 border-b pb-4" style={{ borderColor: 'var(--masari-border)' }}>
                 <h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> إدارة الطلاب ({filteredStudents.length})</h2>
                 <div className="relative w-full md:w-72">
                   <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 opacity-50" />
@@ -1023,15 +1080,15 @@ export default function AdminPage() {
                       <div className="w-10 h-10 rounded-full border-2 flex items-center justify-center font-bold" style={{ borderColor: 'var(--masari-primary)', color: 'var(--masari-primary)' }}>{st.full_name?.charAt(0) || 'م'}</div>
                       <div>
                         <p className="font-bold text-sm">{st.full_name || 'طالب جديد'}</p>
-                        <p className="text-[10px]" style={{ color: 'var(--masari-text-muted)' }}>{st.email}</p>
+                        <p className="text-[10px]" style={{ color: 'var(--masari-text-muted)' }}>{st.email} {st.phone ? ` | ${st.phone}` : ''}</p>
                       </div>
                     </div>
                     <div className="flex gap-2 self-end md:self-auto">
-                      <button type="button" onClick={() => quickNotifyStudent(st)} className="bg-blue-500/10 text-blue-500 px-3 py-2 rounded-xl flex items-center gap-1.5 font-bold"><Bell className="w-3.5 h-3.5"/> تنبيه</button>
-                      <button type="button" onClick={() => toggleStudentActive(st)} className={`px-3 py-2 rounded-xl font-bold ${st.is_active !== false ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                      <button type="button" onClick={() => quickNotifyStudent(st)} className="bg-blue-500/10 text-blue-500 px-3 py-2 rounded-xl flex items-center gap-1.5 font-bold hover:bg-blue-500 hover:text-white transition-colors"><Bell className="w-3.5 h-3.5"/> إشعار</button>
+                      <button type="button" onClick={() => toggleStudentActive(st)} className={`px-3 py-2 rounded-xl font-bold transition-colors ${st.is_active !== false ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white' : 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white'}`}>
                         {st.is_active !== false ? 'حساب نشط' : 'موقوف'}
                       </button>
-                      <button type="button" onClick={() => handleDeleteStudent(st)} className="text-red-500 p-2 hover:bg-red-500/10 rounded-xl"><Trash2 className="w-4 h-4" /></button>
+                      <button type="button" onClick={() => handleDeleteStudent(st)} className="text-red-500 p-2 hover:bg-red-500/10 rounded-xl transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
@@ -1041,21 +1098,27 @@ export default function AdminPage() {
 
           {activeTab === 'subscribers' && (
             <section className="p-6 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
-              <h2 className="text-lg font-black flex items-center gap-2"><GraduationCap className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> المشتركون في الدورات</h2>
-              <select value={subsCourseFilter} onChange={(e) => setSubsCourseFilter(e.target.value)} className="w-full border rounded-2xl p-4 text-sm focus:outline-none" style={inputStyle}>
-                <option value="">-- اختر الدورة لاستعراض المشتركين --</option>
+              <div className="border-b pb-4 mb-4" style={{ borderColor: 'var(--masari-border)' }}>
+                <h2 className="text-lg font-black flex items-center gap-2"><GraduationCap className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> المشتركون في الدورات</h2>
+                <p className="text-xs mt-2" style={{ color: 'var(--masari-text-muted)' }}>اختر الدورة لاستعراض أو إزالة الطلاب المشتركين بها.</p>
+              </div>
+              <select value={subsCourseFilter} onChange={(e) => setSubsCourseFilter(e.target.value)} className="w-full border rounded-2xl p-4 text-sm font-bold focus:outline-none" style={inputStyle}>
+                <option value="">-- اضغط هنا لاختيار الدورة --</option>
                 {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
               {subsCourseFilter && (
-                <div className="space-y-3 pt-2 border-t" style={{ borderColor: 'var(--masari-border)' }}>
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs font-bold mb-3" style={{ color: 'var(--masari-primary)' }}>المشتركون الحاليون: {courseSubscribers.length} طالب</div>
                   {courseSubscribers.map((sub) => (
                     <div key={sub.id} className="flex justify-between items-center p-4 rounded-2xl border text-sm" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
                       <span className="font-bold flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-500"/> {studentName(sub.user_id)}</span>
-                      <button type="button" onClick={() => removeSubscriber(sub)} className="text-red-500 bg-red-500/10 px-3 py-1.5 rounded-xl text-xs font-bold">إلغاء الاشتراك</button>
+                      <button type="button" onClick={() => removeSubscriber(sub)} className="text-red-500 border border-red-500/30 hover:bg-red-500 hover:text-white transition-colors px-4 py-2 rounded-xl text-xs font-bold">إزالة من الدورة</button>
                     </div>
                   ))}
                   {courseSubscribers.length === 0 && (
-                    <p className="text-sm text-center py-10 opacity-50">لا يوجد مشتركون في هذه الدورة.</p>
+                    <div className="text-center py-12 border-2 border-dashed rounded-3xl" style={{ borderColor: 'var(--masari-border)' }}>
+                      <p className="text-sm font-bold opacity-50">لا يوجد مشتركون في هذه الدورة حتى الآن.</p>
+                    </div>
                   )}
                 </div>
               )}
@@ -1076,7 +1139,7 @@ export default function AdminPage() {
                 </div>
                 <div className="flex gap-4">
                   <input type="number" placeholder="الحد الأقصى للاستخدام (الافتراضي 100)" value={maxUses} onChange={(e) => setMaxUses(e.target.value === '' ? '' : Number(e.target.value))} className="flex-1 border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
-                  <button type="submit" className="font-bold px-8 py-3.5 rounded-2xl text-xs" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>إضافة الكوبون</button>
+                  <button type="submit" className="font-bold px-8 py-3.5 rounded-2xl text-xs transition-transform hover:-translate-y-1 shadow-md" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>إضافة الكوبون</button>
                 </div>
               </form>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t" style={{ borderColor: 'var(--masari-border)' }}>
@@ -1084,7 +1147,7 @@ export default function AdminPage() {
                   <div key={cp.id} className="flex justify-between items-center p-4 rounded-2xl border text-xs shadow-sm" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
                     <div>
                       <span className="font-black text-lg block mb-1" style={{ color: 'var(--masari-primary)' }}>{cp.code}</span>
-                      <span className="text-[10px]" style={{ color: 'var(--masari-text-muted)' }}>تم استخدامه {cp.used_count || 0} من أصل {cp.max_uses}</span>
+                      <span className="text-[10px]" style={{ color: 'var(--masari-text-muted)' }}>استخدم {cp.used_count || 0} مرات من أصل {cp.max_uses}</span>
                     </div>
                     <div className="flex flex-col gap-2 items-end">
                       <Toggle checked={cp.is_active} onChange={() => toggleCouponStatus(cp.id, cp.is_active)} />
@@ -1100,8 +1163,8 @@ export default function AdminPage() {
             <section className="p-6 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
               <h2 className="text-lg font-black flex items-center gap-2"><MessageSquare className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> التقييمات والآراء</h2>
               <form onSubmit={handleAddComment} className="flex gap-3 bg-background p-2 rounded-2xl border" style={{ borderColor: 'var(--masari-border)' }}>
-                <input type="text" placeholder="اكتب تقييماً أو رأياً باسم الإدارة..." value={newCommentInput} onChange={(e) => setNewCommentInput(e.target.value)} className="flex-1 bg-transparent border-none px-4 py-2 text-sm focus:outline-none" />
-                <button type="submit" className="px-6 py-2.5 rounded-xl text-sm font-bold shadow-md" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>نشر</button>
+                <input type="text" placeholder="اكتب تقييماً أو رأياً باسم الإدارة يُنشر في الصفحة الرئيسية..." value={newCommentInput} onChange={(e) => setNewCommentInput(e.target.value)} className="flex-1 bg-transparent border-none px-4 py-2 text-sm focus:outline-none" />
+                <button type="submit" className="px-6 py-2.5 rounded-xl text-sm font-bold shadow-md hover:opacity-90" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>نشر</button>
               </form>
               <div className="space-y-4">
                 {comments.map((c) => (
@@ -1113,12 +1176,12 @@ export default function AdminPage() {
                         {c.user_name}
                       </div>
                       <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => toggleCommentPin(c)} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-colors ${c.is_pinned ? 'bg-amber-500/10 text-amber-500' : 'bg-muted text-muted-foreground hover:bg-background'}`}>{c.is_pinned ? 'مثبت' : 'تثبيت'}</button>
-                        <button type="button" onClick={() => toggleCommentHidden(c)} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-colors ${c.is_hidden ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{c.is_hidden ? 'مخفي' : 'ظاهر'}</button>
+                        <button type="button" onClick={() => toggleCommentPin(c)} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-colors ${c.is_pinned ? 'bg-amber-500/10 text-amber-500' : 'bg-muted text-muted-foreground hover:bg-background'}`}>{c.is_pinned ? 'مثبت' : 'تثبيت بالرئيسية'}</button>
+                        <button type="button" onClick={() => toggleCommentHidden(c)} className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-colors ${c.is_hidden ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{c.is_hidden ? 'مخفي' : 'ظاهر للكل'}</button>
                         <button type="button" onClick={() => deleteComment(c.id)} className="text-red-500 p-1.5 rounded-lg hover:bg-red-500/10"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </div>
-                    <p className="leading-relaxed">{c.content}</p>
+                    <p className="leading-relaxed bg-muted/20 p-3 rounded-xl border border-transparent">{c.content}</p>
                     {c.reply && (
                       <div className="p-3 rounded-2xl border border-l-4 bg-muted/30" style={{ borderLeftColor: 'var(--masari-primary)', borderColor: 'var(--masari-border)' }}>
                         <span className="text-[10px] font-bold mb-1 block" style={{ color: 'var(--masari-primary)' }}>رد الإدارة:</span>
@@ -1126,7 +1189,7 @@ export default function AdminPage() {
                       </div>
                     )}
                     <div className="flex gap-2 pt-2 border-t" style={{ borderColor: 'var(--masari-border)' }}>
-                      <input type="text" placeholder="اكتب رداً على الطالب..." value={replyDrafts[c.id] || ''} onChange={(e) => setReplyDrafts({ ...replyDrafts, [c.id]: e.target.value })} className="flex-1 border rounded-xl px-4 py-2 text-xs focus:outline-none" style={inputStyle} />
+                      <input type="text" placeholder="اكتب رداً على هذا التعليق يراه الطالب..." value={replyDrafts[c.id] || ''} onChange={(e) => setReplyDrafts({ ...replyDrafts, [c.id]: e.target.value })} className="flex-1 border rounded-xl px-4 py-2 text-xs focus:outline-none" style={inputStyle} />
                       <button type="button" onClick={() => sendCommentReply(c)} className="border px-4 py-2 rounded-xl text-xs font-bold transition-colors hover:bg-muted" style={{ borderColor: 'var(--masari-border)', color: 'var(--masari-text)' }}><Send className="w-3.5 h-3.5 inline mr-1"/> إرسال الرد</button>
                     </div>
                   </div>
@@ -1136,32 +1199,40 @@ export default function AdminPage() {
           )}
 
           {activeTab === 'notifs' && (
-            <section className="p-6 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
-              <h2 className="text-lg font-black flex items-center gap-2"><Bell className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> الإشعارات المستهدفة</h2>
-              <form onSubmit={handleSendNotif} className="space-y-5">
-                <div className="flex bg-background p-1 rounded-2xl border" style={{ borderColor: 'var(--masari-border)' }}>
+            <section className="p-6 md:p-8 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
+              <div className="border-b pb-4 mb-4" style={{ borderColor: 'var(--masari-border)' }}>
+                <h2 className="text-lg font-black flex items-center gap-2"><Bell className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> نظام الإشعارات الذكي</h2>
+                <p className="text-xs mt-2" style={{ color: 'var(--masari-text-muted)' }}>أرسل تنبيهات مخصصة لجميع الطلاب، أو لمشتركي دورة محددة، أو لطالب بعينه.</p>
+              </div>
+              <form onSubmit={handleSendNotif} className="space-y-6">
+                <div className="flex bg-background p-1.5 rounded-2xl border shadow-inner" style={{ borderColor: 'var(--masari-border)' }}>
                   {(['all', 'course', 'student'] as const).map((t) => (
-                    <button key={t} type="button" onClick={() => setNotifTarget(t)} className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${notifTarget === t ? 'shadow-md' : 'text-muted-foreground hover:bg-muted'}`} style={notifTarget === t ? { backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' } : {}}>
-                      {t === 'all' ? 'لكل المنصة' : t === 'course' ? 'لدورة معينة' : 'لطالب محدد'}
+                    <button key={t} type="button" onClick={() => setNotifTarget(t)} className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${notifTarget === t ? 'shadow-md scale-[1.02]' : 'text-muted-foreground hover:bg-muted'}`} style={notifTarget === t ? { backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' } : {}}>
+                      {t === 'all' ? 'لكل المنصة (عام)' : t === 'course' ? 'لمشتركي دورة معينة' : 'لطالب محدد فقط'}
                     </button>
                   ))}
                 </div>
-                {notifTarget === 'course' && (
-                  <select value={notifTargetCourse} onChange={(e) => setNotifTargetCourse(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} required>
-                    <option value="">-- اختر الدورة --</option>
-                    {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-                  </select>
-                )}
-                {notifTarget === 'student' && (
-                  <select value={notifTargetStudent} onChange={(e) => setNotifTargetStudent(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} required>
-                    <option value="">-- اختر الطالب --</option>
-                    {students.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
-                  </select>
-                )}
-                <input type="text" placeholder="عنوان الإشعار (مثال: خصم جديد بمناسبة العيد!)" value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none font-bold" style={inputStyle} required />
-                <textarea placeholder="محتوى الإشعار وتفاصيله..." rows={4} value={notifMsg} onChange={(e) => setNotifMsg(e.target.value)} className="w-full border rounded-2xl p-4 text-sm focus:outline-none" style={inputStyle} required />
+                
+                <div className="space-y-4 p-5 rounded-2xl border bg-muted/10" style={{ borderColor: 'var(--masari-border)' }}>
+                  {notifTarget === 'course' && (
+                    <select value={notifTargetCourse} onChange={(e) => setNotifTargetCourse(e.target.value)} className="w-full border rounded-2xl p-4 text-xs font-bold focus:outline-none" style={inputStyle} required>
+                      <option value="">-- حدد الدورة المستهدفة --</option>
+                      {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                    </select>
+                  )}
+                  {notifTarget === 'student' && (
+                    <select value={notifTargetStudent} onChange={(e) => setNotifTargetStudent(e.target.value)} className="w-full border rounded-2xl p-4 text-xs font-bold focus:outline-none" style={inputStyle} required>
+                      <option value="">-- حدد الطالب المستهدف --</option>
+                      {students.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
+                    </select>
+                  )}
+                  
+                  <input type="text" placeholder="عنوان الإشعار (مثال: تنبيه هام، تحديث للمقرر، خصم جديد!)" value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} className="w-full border rounded-2xl p-4 text-sm font-bold focus:outline-none shadow-sm" style={inputStyle} required />
+                  <textarea placeholder="اكتب تفاصيل ومحتوى الإشعار هنا..." rows={4} value={notifMsg} onChange={(e) => setNotifMsg(e.target.value)} className="w-full border rounded-2xl p-4 text-sm focus:outline-none shadow-sm" style={inputStyle} required />
+                </div>
+                
                 <button type="submit" className="w-full font-bold py-4 rounded-2xl text-sm shadow-lg flex justify-center items-center gap-2 hover:-translate-y-1 transition-transform" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
-                  <Send className="w-5 h-5"/> إرسال الإشعار فوراً
+                  <Send className="w-5 h-5"/> إرسال الإشعار الآن
                 </button>
               </form>
             </section>
@@ -1171,15 +1242,15 @@ export default function AdminPage() {
             <section className="p-6 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
               <div className="border-b pb-4 mb-4" style={{ borderColor: 'var(--masari-border)' }}>
                 <h2 className="text-lg font-black flex items-center gap-2"><Settings className="w-6 h-6" style={{ color: 'var(--masari-primary)' }}/> إعدادات المنصة المتقدمة</h2>
-                <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--masari-text-muted)' }}>إيقاف أي ميزة من هنا سيتم تطبيقه فوراً على كافة صفحات المنصة، وسيمنع الطلاب من استخدامها.</p>
+                <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--masari-text-muted)' }}>إيقاف أي ميزة من هنا سيتم تطبيقه فوراً على كافة صفحات المنصة، وسيمنع الطلاب من استخدامها. استخدمها للطوارئ.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { key: 'registration_enabled', label: 'تفعيل إنشاء حسابات جديدة', icon: Users },
-                  { key: 'purchase_enabled', label: 'تفعيل سلة المشتريات والدفع', icon: DollarSign },
-                  { key: 'comments_enabled', label: 'تفعيل إضافة التعليقات', icon: MessageSquare },
-                  { key: 'notifications_enabled', label: 'ظهور أيقونة الإشعارات', icon: Bell },
-                  { key: 'coupons_enabled', label: 'تفعيل حقل الكوبونات', icon: Ticket },
+                  { key: 'registration_enabled', label: 'تفعيل السماح بالتسجيل (إنشاء حسابات)', icon: Users },
+                  { key: 'purchase_enabled', label: 'تفعيل سلة المشتريات وعمليات الدفع', icon: DollarSign },
+                  { key: 'comments_enabled', label: 'تفعيل إضافة التعليقات من قبل الطلاب', icon: MessageSquare },
+                  { key: 'notifications_enabled', label: 'إظهار أيقونة ونظام الإشعارات', icon: Bell },
+                  { key: 'coupons_enabled', label: 'إظهار حقل إدخال الكوبونات في السلة', icon: Ticket },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
@@ -1198,16 +1269,19 @@ export default function AdminPage() {
 
           {activeTab === 'audit' && (
             <section className="p-6 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
-              <h2 className="text-lg font-black flex items-center gap-2"><History className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> سجل العمليات (Audit Log)</h2>
+              <div className="border-b pb-4 mb-4" style={{ borderColor: 'var(--masari-border)' }}>
+                <h2 className="text-lg font-black flex items-center gap-2"><History className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> سجل العمليات (Audit Log)</h2>
+                <p className="text-xs mt-2" style={{ color: 'var(--masari-text-muted)' }}>يتتبع هذا السجل جميع الإجراءات التي تقوم بها داخل لوحة الإدارة للرجوع إليها لاحقاً.</p>
+              </div>
               <div className="space-y-3">
                 {auditLog.map((log) => (
-                  <div key={log.id} className="p-4 rounded-2xl border flex justify-between items-center text-xs shadow-sm" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
+                  <div key={log.id} className="p-4 rounded-2xl border flex justify-between items-center text-xs shadow-sm transition-colors hover:bg-muted/50" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
                     <div>
-                      <span className="font-bold block text-sm" style={{ color: 'var(--masari-text)' }}>{log.action}</span>
-                      <span className="opacity-70">{log.details}</span>
+                      <span className="font-bold block text-sm mb-1" style={{ color: 'var(--masari-text)' }}>{log.action}</span>
+                      <span className="opacity-70 font-mono">{log.details}</span>
                     </div>
                     <div className="text-right">
-                      <span className="block font-bold opacity-50">{new Date(log.created_at).toLocaleDateString('ar-SA')}</span>
+                      <span className="block font-bold" style={{ color: 'var(--masari-primary)' }}>{new Date(log.created_at).toLocaleDateString('ar-SA')}</span>
                       <span className="opacity-50">{new Date(log.created_at).toLocaleTimeString('ar-SA')}</span>
                     </div>
                   </div>
@@ -1224,17 +1298,27 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="rounded-3xl border max-w-xl w-full p-8 space-y-6 shadow-2xl animate-in zoom-in-95" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
             <div className="flex justify-between items-center border-b pb-4" style={{ borderColor: 'var(--masari-border)' }}>
-              <h3 className="text-lg font-black flex items-center gap-2"><Edit3 className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> تعديل الدرس</h3>
+              <h3 className="text-lg font-black flex items-center gap-2"><Edit3 className="w-5 h-5" style={{ color: 'var(--masari-primary)' }}/> تعديل الدرس / المقطع</h3>
               <button type="button" onClick={() => setEditingLesson(null)} className="p-2 rounded-xl bg-muted hover:bg-red-500/10 hover:text-red-500 transition-colors"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
-              <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="عنوان الدرس" className="w-full border rounded-2xl p-4 text-sm focus:outline-none" style={inputStyle} />
-              <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} placeholder="الوصف" className="w-full border rounded-2xl p-4 text-sm focus:outline-none" style={inputStyle} />
-              <input value={editVideoUrl} onChange={(e) => setEditVideoUrl(e.target.value)} placeholder="رابط يوتيوب" className="w-full border rounded-2xl p-4 text-sm focus:outline-none" style={inputStyle} />
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground">عنوان المقطع</label>
+                <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="عنوان الدرس" className="w-full border rounded-2xl p-4 text-sm focus:outline-none font-bold" style={inputStyle} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground">الرابط (YouTube)</label>
+                <input value={editVideoUrl} onChange={(e) => setEditVideoUrl(e.target.value)} placeholder="رابط يوتيوب (Unlisted مسموح)" className="w-full border rounded-2xl p-4 text-sm focus:outline-none" style={inputStyle} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground">الوصف / الملاحظات</label>
+                <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={4} placeholder="الوصف" className="w-full border rounded-2xl p-4 text-sm focus:outline-none" style={inputStyle} />
+              </div>
             </div>
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setEditingLesson(null)} className="flex-1 border font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-muted" style={{ borderColor: 'var(--masari-border)', color: 'var(--masari-text)' }}>إلغاء</button>
-              <button type="button" onClick={handleUpdateLesson} disabled={savingEdit} className="flex-1 font-bold py-4 rounded-2xl text-sm shadow-lg disabled:opacity-60" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
+            <div className="flex gap-3 pt-4 border-t" style={{ borderColor: 'var(--masari-border)' }}>
+              <button type="button" onClick={() => setEditingLesson(null)} className="flex-1 border font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-muted" style={{ borderColor: 'var(--masari-border)', color: 'var(--masari-text)' }}>إلغاء الأمر</button>
+              <button type="button" onClick={handleUpdateLesson} disabled={savingEdit} className="flex-1 font-bold py-4 rounded-2xl text-sm shadow-lg disabled:opacity-60 flex justify-center items-center gap-2 hover:-translate-y-1 transition-transform" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
+                {savingEdit ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                 {savingEdit ? 'جاري التحديث...' : 'حفظ التعديلات'}
               </button>
             </div>
