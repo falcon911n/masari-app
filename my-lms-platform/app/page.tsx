@@ -1,73 +1,26 @@
 'use client';
 
-/**
- * منصة مساري التعليمية | Masari Master Platform (Root Layout & Client Core Engine)
- * ==================================================================================
- * قائمة التطوير (المرحلة الثانية):
- * - إضافة الزخارف التعليمية في الخلفية (كتب، أقلام، أشكال هندسية).
- * - إضافة قسم Hero احترافي جديد.
- * - إضافة قسم "ماذا تقدم مساري" (Features).
- * - إضافة قسم الإحصائيات (Stats).
- * - إضافة قسم "لماذا تختارنا" (Why Choose Us).
- * - إضافة قسم الأسئلة الشائعة (FAQ).
- * - تحسين استجابة الجوال (Responsive 100%).
- * - المحافظة الكاملة على الكود البرمجي الأصلي ومنطق قاعدة البيانات بلا أي حذف.
- */
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  GraduationCap, Search, BookOpen, PlayCircle, FileText, Lock,
-  Sparkles, Heart, ShieldAlert, LogIn, LogOut, ShoppingBag,
-  Trash2, Star, ChevronRight, Flame, X, Bell, Sun, Moon,
-  Quote, Send, User, ClipboardList, Target, Award, Zap,
-  CheckCircle2, Users, Layout, Clock, ChevronDown
+  Search, BookOpen, PlayCircle, FileText, Lock,
+  Sparkles, Heart, ShoppingBag, Trash2, Star, ChevronRight, 
+  Flame, X, Bell, Quote, Send, ClipboardList, Target, 
+  Award, Zap, CheckCircle2, Users, Layout, Clock, ChevronDown
 } from 'lucide-react';
 
 interface Course {
-  id: string;
-  title: string;
-  code?: string;
-  price?: number;
-  original_price?: number;
-  description?: string;
-  instructor?: string;
-  is_published?: boolean;
-  section_type?: string;
-  category?: string;
-  image_url?: string;
+  id: string; title: string; code?: string; price?: number; original_price?: number; description?: string; instructor?: string; is_published?: boolean; section_type?: string; category?: string; image_url?: string;
 }
-
 interface Lesson {
-  id: string;
-  course_id: string;
-  title: string;
-  description?: string;
-  video_url?: string;
-  pdf_url?: string;
-  summary_url?: string;
-  assignment_url?: string;
-  is_preview?: boolean;
-  is_published?: boolean;
-  order_index?: number;
+  id: string; course_id: string; title: string; description?: string; video_url?: string; pdf_url?: string; summary_url?: string; assignment_url?: string; is_preview?: boolean; is_published?: boolean; order_index?: number;
 }
-
 interface NotificationItem {
-  id: string;
-  title: string;
-  message: string;
-  target_type?: string;
-  target_id?: string;
-  created_at?: string;
+  id: string; title: string; message: string; target_type?: string; target_id?: string; created_at?: string;
 }
-
 interface Testimonial {
-  id: string;
-  name: string;
-  text: string;
-  rating?: number;
+  id: string; name: string; text: string; rating?: number;
 }
 
 function StarRating({ rating }: { rating: number }) {
@@ -80,7 +33,6 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-// مكون زخارف الخلفية التعليمية
 const BackgroundDecorations = () => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.03] dark:opacity-[0.02] z-0">
     <svg className="absolute top-20 right-10 w-64 h-64 blur-sm transform rotate-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
@@ -99,18 +51,9 @@ const BackgroundDecorations = () => (
 
 export default function MasariMasterApp() {
   const router = useRouter();
-
-  // حالة النظام والجلسات
   const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // إدارة المظهر والثيمات الكونية
-  const [darkMode, setDarkMode] = useState(true);
-  const [themeColor, setThemeColor] = useState<'blue' | 'red' | 'purple' | 'green' | 'black'>('blue');
-
-  // المقررات والدروس
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -118,32 +61,20 @@ export default function MasariMasterApp() {
   const [subscribedCourses, setSubscribedCourses] = useState<string[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
 
-  // البحث والتصنيفات
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTabSection, setActiveTabSection] = useState<'bestseller' | 'courses' | 'summaries' | 'books' | 'quizzes'>('bestseller');
 
-  // السلة والمشتريات
   const [cart, setCart] = useState<Course[]>([]);
   const [showCartModal, setShowCartModal] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [discountApplied, setDiscountApplied] = useState<{ id?: string; code?: string; type: 'percent' | 'fixed'; value: number } | null>(null);
 
-  // الإشعارات
-  const [showNotifModal, setShowNotifModal] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-
-  // مساعد الذكاء الاصطناعي Masari AI
   const [showAiBot, setShowAiBot] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
   const [aiResponses, setAiResponses] = useState<{ role: string; text: string }[]>([]);
 
-  // آراء الطلاب
   const [realTestimonials, setRealTestimonials] = useState<Testimonial[]>([]);
-
-  // إعدادات المنصة العامة
   const [platformSettings, setPlatformSettings] = useState<Record<string, boolean>>({});
-
-  // حالة لفتح/إغلاق الأسئلة الشائعة
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const showToast = (msg: string) => {
@@ -151,25 +82,15 @@ export default function MasariMasterApp() {
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  useEffect(() => {
-    initializeMasterApp();
-  }, []);
+  useEffect(() => { initializeMasterApp(); }, []);
 
   async function initializeMasterApp() {
     try {
-      setLoadingAuth(true);
       setLoadingCourses(true);
-      await Promise.all([
-        checkActiveSession(),
-        fetchMasterCourses(),
-        fetchMasterNotifications(),
-        fetchMasterTestimonials(),
-        fetchPlatformSettings()
-      ]);
+      await Promise.all([ checkActiveSession(), fetchMasterCourses(), fetchMasterTestimonials(), fetchPlatformSettings() ]);
     } catch (err) {
       console.error('Initialization error:', err);
     } finally {
-      setLoadingAuth(false);
       setLoadingCourses(false);
     }
   }
@@ -179,13 +100,9 @@ export default function MasariMasterApp() {
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
         setUser(authData.user);
-        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', authData.user.id).maybeSingle();
-        if (profileData) setProfile(profileData);
         fetchUserSubscriptions(authData.user.id);
       }
-    } catch (e) {
-      console.error('Session check error:', e);
-    }
+    } catch (e) { console.error('Session error:', e); }
   }
 
   async function fetchUserSubscriptions(userId: string) {
@@ -199,29 +116,13 @@ export default function MasariMasterApp() {
     try {
       const { data } = await supabase.from('courses').select('*');
       if (data) setCourses(data.filter((c) => c.is_published !== false));
-    } catch (e) {
-      setCourses([]);
-    }
-  }
-
-  async function fetchMasterNotifications() {
-    try {
-      const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
-      if (data) setNotifications(data);
-    } catch (e) {}
+    } catch (e) { setCourses([]); }
   }
 
   async function fetchMasterTestimonials() {
     try {
-      const { data } = await supabase
-        .from('comments')
-        .select('*')
-        .eq('is_hidden', false)
-        .order('created_at', { ascending: false })
-        .limit(6);
-      if (data && data.length > 0) {
-        setRealTestimonials(data.map((c: any) => ({ id: c.id, name: c.user_name || 'طالب مساري', text: c.content, rating: c.rating || 5 })));
-      }
+      const { data } = await supabase.from('comments').select('*').eq('is_hidden', false).order('created_at', { ascending: false }).limit(6);
+      if (data && data.length > 0) setRealTestimonials(data.map((c: any) => ({ id: c.id, name: c.user_name || 'طالب مساري', text: c.content, rating: c.rating || 5 })));
     } catch {}
   }
 
@@ -250,29 +151,14 @@ export default function MasariMasterApp() {
         setLessons(data);
         setSelectedLesson(data[0]);
       } else {
-        setLessons([]);
-        setSelectedLesson(null);
+        setLessons([]); setSelectedLesson(null);
       }
-    } catch (e) {
-      setLessons([]);
-    }
+    } catch (e) { setLessons([]); }
   }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setSubscribedCourses([]);
-    showToast('تم تسجيل الخروج بنجاح 👋');
-    router.push('/login');
-  };
 
   const addToCart = (course: Course, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (subscribedCourses.includes(course.id)) {
-      showToast('أنت مشترك بالفعل في هذا المقرر!');
-      return;
-    }
+    if (subscribedCourses.includes(course.id)) { showToast('أنت مشترك بالفعل في هذا المقرر!'); return; }
     if (!cart.some((c) => c.id === course.id)) {
       setCart([...cart, course]);
       showToast(`تمت إضافة (${course.title}) للسلة بنجاح! 🛒`);
@@ -281,9 +167,7 @@ export default function MasariMasterApp() {
     }
   };
 
-  const removeFromCart = (courseId: string) => {
-    setCart(cart.filter((c) => c.id !== courseId));
-  };
+  const removeFromCart = (courseId: string) => setCart(cart.filter((c) => c.id !== courseId));
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price || 0), 0);
   let finalCartTotal = cartTotal;
@@ -295,101 +179,50 @@ export default function MasariMasterApp() {
   const applyMasterCoupon = async () => {
     if (!couponCode.trim()) return;
     try {
-      const { data } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', couponCode.trim().toUpperCase())
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (!data) {
-        showToast('رمز الكوبون غير صحيح أو غير مُفعّل');
-        return;
-      }
-
+      const { data } = await supabase.from('coupons').select('*').eq('code', couponCode.trim().toUpperCase()).eq('is_active', true).maybeSingle();
+      if (!data) { showToast('رمز الكوبون غير صحيح أو غير مُفعّل'); return; }
       const now = new Date();
-      if (data.start_date && new Date(data.start_date) > now) {
-        showToast('كوبون الخصم لم يبدأ سريانه بعد');
-        return;
-      }
-      if (data.end_date && new Date(data.end_date) < now) {
-        showToast('انتهت صلاحية هذا الكوبون');
-        return;
-      }
-      if (data.max_uses && (data.used_count || 0) >= data.max_uses) {
-        showToast('تم استنفاد عدد مرات استخدام هذا الكوبون');
-        return;
-      }
+      if (data.start_date && new Date(data.start_date) > now) { showToast('كوبون الخصم لم يبدأ سريانه بعد'); return; }
+      if (data.end_date && new Date(data.end_date) < now) { showToast('انتهت صلاحية هذا الكوبون'); return; }
+      if (data.max_uses && (data.used_count || 0) >= data.max_uses) { showToast('تم استنفاد عدد مرات استخدام هذا الكوبون'); return; }
       if (data.allowed_courses && Array.isArray(data.allowed_courses) && data.allowed_courses.length > 0) {
-        const cartCourseIds = cart.map((c) => c.id);
-        const hasAllowedCourse = cartCourseIds.some((id) => data.allowed_courses.includes(id));
-        if (!hasAllowedCourse) {
-          showToast('هذا الكوبون غير صالح على المقررات الموجودة في سلتك');
-          return;
-        }
+        const hasAllowedCourse = cart.some((c) => data.allowed_courses.includes(c.id));
+        if (!hasAllowedCourse) { showToast('هذا الكوبون غير صالح على المقررات الموجودة في سلتك'); return; }
       }
-
       setDiscountApplied({ id: data.id, code: data.code, type: data.discount_type, value: Number(data.discount_value) });
       showToast(`تم تطبيق الكوبون (${data.code}) بنجاح! 🎉`);
-    } catch (e) {
-      showToast('حدث خطأ أثناء التحقق من الكوبون');
-    }
+    } catch (e) { showToast('حدث خطأ أثناء التحقق من الكوبون'); }
   };
 
   const handleCompleteCheckout = async () => {
-    if (!user) {
-      showToast('يرجى تسجيل الدخول لتفعيل الاشتراك!');
-      router.push('/login');
-      return;
-    }
+    if (!user) { showToast('يرجى تسجيل الدخول لتفعيل الاشتراك!'); router.push('/login'); return; }
     if (cart.length === 0) return;
-    if (platformSettings.purchase_enabled === false) {
-      showToast('عملية الشراء متوقفة مؤقتاً من قبل إدارة المنصة');
-      return;
-    }
-
+    if (platformSettings.purchase_enabled === false) { showToast('عملية الشراء متوقفة مؤقتاً من قبل إدارة المنصة'); return; }
     try {
       const newItems = cart.filter((c) => !subscribedCourses.includes(c.id));
-      for (const course of newItems) {
-        await supabase.from('subscriptions').insert([{ user_id: user.id, course_id: course.id }]);
-      }
-
+      for (const course of newItems) await supabase.from('subscriptions').insert([{ user_id: user.id, course_id: course.id }]);
       if (discountApplied?.id) {
         const { data: cpData } = await supabase.from('coupons').select('used_count').eq('id', discountApplied.id).maybeSingle();
         await supabase.from('coupons').update({ used_count: (cpData?.used_count || 0) + 1 }).eq('id', discountApplied.id);
       }
-
       showToast('تمت عملية الدفع وتفعيل الاشتراكات بنجاح! 🎉');
       fetchUserSubscriptions(user.id);
-      setCart([]);
-      setShowCartModal(false);
-      setDiscountApplied(null);
-      setCouponCode('');
-    } catch (e) {
-      showToast('حدث خطأ أثناء معالجة الدفع');
-    }
+      setCart([]); setShowCartModal(false); setDiscountApplied(null); setCouponCode('');
+    } catch (e) { showToast('حدث خطأ أثناء معالجة الدفع'); }
   };
 
   const handleAiMasterSend = async () => {
     if (!aiQuery.trim()) return;
     const query = aiQuery.trim();
-    const updatedHistory = [...aiResponses, { role: 'user', text: query }];
-    setAiResponses(updatedHistory);
+    setAiResponses([...aiResponses, { role: 'user', text: query }]);
     setAiQuery('');
-
-    let reply = 'أهلاً بك! أنا مساعد مساري الذكي. بحثت في أرشيف المقررات ولم أجد مطابقة دقيقة. يمكنك تصفح الأقسام الرئيسية.';
+    let reply = 'أهلاً بك! بحثت في أرشيف المقررات ولم أجد مطابقة دقيقة. يمكنك تصفح الأقسام الرئيسية.';
     const q = query.toLowerCase();
-
     const matchedCourse = courses.find(c => c.title.toLowerCase().includes(q) || (c.code && c.code.toLowerCase().includes(q)));
-    if (matchedCourse) {
-      reply = `وجدت لك المقرر المطلوب: (${matchedCourse.title}) - الرمز الأكاديمي: ${matchedCourse.code || 'مقرر'} - السعر: ${matchedCourse.price ? matchedCourse.price + ' ر.س' : 'مجاني'}. يمكنك استعراضه فوراً من القائمة الرئيسية!`;
-    } else if (q.includes('سعر') || q.includes('اشتراك')) {
-      reply = 'أسعار المقررات مبينة أسفل كل مادة، ويمكنك استخدام كوبونات الخصم المتاحة داخل سلة المشتريات.';
-    } else if (q.includes('دعم') || q.includes('تواصل')) {
-      reply = 'للتواصل مع فريق الدعم الفني: البريد الإلكتروني falcon911n@gmail.com أو عبر الواتساب المباشر.';
-    }
-
-    setAiResponses([...updatedHistory, { role: 'bot', text: reply }]);
+    if (matchedCourse) reply = `وجدت لك المقرر المطلوب: (${matchedCourse.title}) - السعر: ${matchedCourse.price ? matchedCourse.price + ' ر.س' : 'مجاني'}.`;
+    else if (q.includes('سعر')) reply = 'أسعار المقررات مبينة أسفل كل مادة، ويمكنك استخدام كوبونات الخصم.';
+    else if (q.includes('دعم')) reply = 'للتواصل مع فريق الدعم الفني: البريد الإلكتروني أو الواتساب المباشر بالأسفل.';
+    setAiResponses(prev => [...prev, { role: 'bot', text: reply }]);
   };
 
   const displayCourses = useMemo(() => {
@@ -402,29 +235,9 @@ export default function MasariMasterApp() {
     return list.filter((c) => (c.section_type || 'courses') === activeTabSection);
   }, [courses, searchQuery, activeTabSection]);
 
-  const relevantNotifications = useMemo(() => {
-    return notifications.filter((n) => {
-      if (!n.target_type || n.target_type === 'all') return true;
-      if (n.target_type === 'course') return !!n.target_id && subscribedCourses.includes(n.target_id);
-      if (n.target_type === 'student') return !!user && n.target_id === user.id;
-      return true;
-    });
-  }, [notifications, subscribedCourses, user]);
-
   const isSubscribedToSelected = selectedCourse ? subscribedCourses.includes(selectedCourse.id) : false;
   const canAccessLesson = selectedLesson ? Boolean(selectedLesson.is_preview || isSubscribedToSelected) : false;
 
-  const colorThemeClasses = useMemo(() => {
-    switch (themeColor) {
-      case 'red': return { primary: 'bg-red-600', text: 'text-red-500', badge: 'bg-red-500/10 text-red-500', border: 'border-red-500/30' };
-      case 'purple': return { primary: 'bg-purple-600', text: 'text-purple-500', badge: 'bg-purple-500/10 text-purple-500', border: 'border-purple-500/30' };
-      case 'green': return { primary: 'bg-emerald-600', text: 'text-emerald-500', badge: 'bg-emerald-500/10 text-emerald-500', border: 'border-emerald-500/30' };
-      case 'black': return { primary: 'bg-zinc-800', text: 'text-zinc-300', badge: 'bg-zinc-800 text-zinc-300', border: 'border-zinc-700' };
-      default: return { primary: 'bg-[#2563EB]', text: 'text-[#2563EB]', badge: 'bg-[#2563EB]/10 text-[#2563EB]', border: 'border-blue-500/30' };
-    }
-  }, [themeColor]);
-
-  // قائمة الأسئلة الشائعة
   const faqs = [
     { q: 'ما هي منصة Masari؟', a: 'منصة مساري هي وجهتك الشاملة للتعلم الجامعي والمدرسي، تقدم مقررات مشروحة، ملخصات، وبنوك أسئلة بطريقة تفاعلية.' },
     { q: 'كيف أستطيع التسجيل في المنصة؟', a: 'يمكنك التسجيل بسهولة عبر النقر على زر "تسجيل الدخول" في الأعلى واختيار "إنشاء حساب جديد" باستخدام بريدك الإلكتروني.' },
@@ -433,7 +246,7 @@ export default function MasariMasterApp() {
   ];
 
   return (
-    <div dir="rtl" className={`min-h-screen relative transition-colors duration-300 overflow-hidden ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#F8FAFC] text-[#111827]'}`}>
+    <div dir="rtl" className="relative transition-colors duration-300 overflow-hidden bg-[var(--masari-bg)] text-[var(--masari-text)]">
       
       <BackgroundDecorations />
 
@@ -445,111 +258,51 @@ export default function MasariMasterApp() {
         </div>
       )}
 
-      {/* Header المحلي للصفحة (نحتفظ به كما طلبت بدون كسر) */}
-      <header className={`sticky top-0 z-40 border-b backdrop-blur-xl ${darkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-[#E5E7EB]'}`}>
-        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center gap-4">
-          <button onClick={() => { setSelectedCourse(null); setSelectedLesson(null); }} className="flex items-center gap-3 focus:outline-none text-right group">
-            <div className={`${colorThemeClasses.primary} p-2.5 rounded-2xl text-white shadow-lg group-hover:scale-105 transition-transform`}>
-              <GraduationCap className="w-6 h-6" />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className={`text-xl font-black ${colorThemeClasses.text}`}>مساري</span>
-              <span className="text-[10px] sm:text-xs font-bold text-slate-400 hidden sm:inline-block">| Masari Master</span>
-            </div>
-          </button>
-
-          <div className="flex items-center gap-1.5 md:gap-3">
-            <div className="hidden lg:flex items-center gap-1.5 bg-slate-800/20 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-border">
-              {(['blue', 'red', 'purple', 'green', 'black'] as const).map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setThemeColor(c)}
-                  className={`w-4 h-4 rounded-full transition transform hover:scale-125 ${c === 'blue' ? 'bg-blue-600' : c === 'red' ? 'bg-red-600' : c === 'purple' ? 'bg-purple-600' : c === 'green' ? 'bg-emerald-600' : 'bg-zinc-800 border border-zinc-600'}`}
-                  title={`تغيير الثيم إلى ${c}`}
-                />
-              ))}
-            </div>
-
-            <button onClick={() => setDarkMode(!darkMode)} className="p-2 sm:p-2.5 rounded-xl border border-border bg-background text-amber-500 hover:scale-105 transition">
-              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-slate-500" />}
-            </button>
-
-            {platformSettings.notifications_enabled !== false && (
-              <button onClick={() => setShowNotifModal(true)} className="relative p-2 sm:p-2.5 rounded-xl border border-border bg-background hover:border-primary transition">
-                <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
-                {relevantNotifications.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
-                    {relevantNotifications.length}
-                  </span>
-                )}
-              </button>
-            )}
-
-            <button onClick={() => setShowCartModal(true)} className="relative p-2 sm:p-2.5 rounded-xl border border-border bg-background text-foreground">
-              <ShoppingBag className={`w-4 h-4 sm:w-5 sm:h-5 ${colorThemeClasses.text}`} />
-              {cart.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-background">
-                  {cart.length}
-                </span>
-              )}
-            </button>
-
-            <button onClick={() => setShowAiBot(!showAiBot)} className={`${colorThemeClasses.badge} border px-2 sm:px-3 py-2 rounded-xl text-[10px] sm:text-xs font-bold transition flex items-center gap-1.5`}>
-              <Sparkles className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Masari AI</span>
-            </button>
-
-            {user ? (
-              <div className="flex items-center gap-2">
-                <Link href="/profile" className={`hidden md:flex items-center gap-2 ${colorThemeClasses.badge} border px-3.5 py-2 rounded-xl text-xs font-bold hover:opacity-85 transition`}>
-                  <User className="w-4 h-4" /> <span className="truncate max-w-[100px]">{profile?.full_name || user.email?.split('@')[0]}</span>
-                </Link>
-                <button onClick={handleLogout} className="bg-red-500/10 text-red-500 border border-red-500/20 p-2 sm:p-2.5 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition" title="تسجيل الخروج">
-                  <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
-              </div>
-            ) : (
-              <Link href="/login" className={`${colorThemeClasses.primary} text-white text-[10px] sm:text-xs font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl flex items-center gap-2 shadow-md`}>
-                <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">دخول</span>
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
+      {/* الأزرار العائمة الثابتة بالأسفل (الذكاء الاصطناعي والسلة) */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
+        <button onClick={() => setShowAiBot(!showAiBot)} className="w-12 h-12 rounded-full shadow-2xl flex items-center justify-center transition-transform hover:scale-110" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
+          <Sparkles className="w-5 h-5" />
+        </button>
+        <button onClick={() => setShowCartModal(true)} className="w-12 h-12 rounded-full shadow-2xl flex items-center justify-center transition-transform hover:scale-110 relative bg-background border border-border text-foreground">
+          <ShoppingBag className="w-5 h-5" />
+          {cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-background">
+              {cart.length}
+            </span>
+          )}
+        </button>
+      </div>
 
       {!selectedCourse ? (
         <main className="relative z-10 space-y-16 pb-20">
-
-          {/* 1. قسم Hero الجديد والاحترافي */}
           <section className="max-w-7xl mx-auto px-4 md:px-6 pt-16 pb-8 text-center space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-xs font-bold mb-4 border border-primary/20">
               <Sparkles className="w-4 h-4" /> <span>مرحباً بك في مستقبل التعليم الرقمي</span>
             </div>
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tight leading-tight">
               تعلم بذكاء، وتفوق <br className="hidden md:block"/> 
-              <span className={`bg-clip-text text-transparent bg-gradient-to-l ${darkMode ? 'from-blue-400 to-emerald-400' : 'from-blue-600 to-emerald-600'}`}>
+              <span className="bg-clip-text text-transparent bg-gradient-to-l from-blue-500 to-emerald-500">
                 بجدارة مع مساري
               </span>
             </h1>
-            <p className="text-sm md:text-base lg:text-lg max-w-2xl mx-auto text-slate-500 dark:text-slate-400 leading-relaxed">
+            <p className="text-sm md:text-base lg:text-lg max-w-2xl mx-auto text-muted-foreground leading-relaxed">
               شروحات وافية، بنوك أسئلة متكاملة، وملخصات مركزة. كل ما تحتاجه لتجاوز اختباراتك الأكاديمية بنجاح باهر وفي مكان واحد.
             </p>
-
             <div className="max-w-3xl mx-auto relative pt-6 z-20">
-              <div className={`absolute inset-0 -z-10 blur-xl opacity-20 rounded-full ${colorThemeClasses.primary}`}></div>
+              <div className="absolute inset-0 -z-10 blur-xl opacity-20 rounded-full bg-primary/30"></div>
               <Search className="w-5 h-5 text-muted-foreground absolute right-6 top-10" />
               <input
                 type="text"
                 placeholder="ابحث باسم المادة، رمز المقرر، أو اسم الدكتور..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full border-2 rounded-full pr-14 pl-6 py-4 text-sm focus:outline-none focus:border-primary transition-all shadow-xl ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                className="w-full border-2 rounded-full pr-14 pl-6 py-4 text-sm focus:outline-none focus:border-primary transition-all shadow-xl bg-background border-border text-foreground"
               />
             </div>
           </section>
 
-          {/* 2. قسم الإحصائيات (Stats) */}
           <section className="max-w-5xl mx-auto px-4">
-            <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-3xl border shadow-sm backdrop-blur-sm ${darkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-white/50 border-slate-200'}`}>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-3xl border shadow-sm backdrop-blur-sm bg-surface border-border">
               {[
                 { label: 'طالب مسجل', value: '+12,000', icon: Users },
                 { label: 'مقرر دراسي', value: '+350', icon: BookOpen },
@@ -557,7 +310,7 @@ export default function MasariMasterApp() {
                 { label: 'نسبة نجاح', value: '98%', icon: Award },
               ].map((stat, i) => (
                 <div key={i} className="text-center space-y-2">
-                  <stat.icon className={`w-6 h-6 mx-auto ${colorThemeClasses.text} opacity-80`} />
+                  <stat.icon className="w-6 h-6 mx-auto text-primary opacity-80" />
                   <h4 className="text-2xl font-black">{stat.value}</h4>
                   <p className="text-xs text-muted-foreground font-medium">{stat.label}</p>
                 </div>
@@ -565,7 +318,6 @@ export default function MasariMasterApp() {
             </div>
           </section>
 
-          {/* 3. قسم "ماذا تقدم مساري" */}
           <section className="max-w-7xl mx-auto px-4 pt-8">
             <div className="text-center mb-10 space-y-3">
               <h2 className="text-2xl md:text-3xl font-black">أقسام المنصة الشاملة</h2>
@@ -586,7 +338,7 @@ export default function MasariMasterApp() {
                     onClick={() => setActiveTabSection(btn.id as any)}
                     className={`px-5 py-3 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 border ${
                       activeTabSection === btn.id 
-                        ? `${colorThemeClasses.primary} text-white shadow-lg shadow-primary/20 scale-105` 
+                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105 border-primary' 
                         : 'bg-background hover:bg-muted border-border text-muted-foreground hover:scale-105'
                     }`}
                   >
@@ -597,21 +349,20 @@ export default function MasariMasterApp() {
             </div>
           </section>
 
-          {/* 4. عرض المقررات (الأساسي) */}
           <section className="max-w-7xl mx-auto px-4 min-h-[400px]">
             {!loadingCourses && (
               <div className="space-y-6">
                 <h2 className="text-xl font-black flex items-center gap-2 border-b border-border pb-4">
-                  <Target className={`w-5 h-5 ${colorThemeClasses.text}`} /> 
+                  <Target className="w-5 h-5 text-primary" /> 
                   نتائج القسم المختار ({displayCourses.length})
                 </h2>
                 {displayCourses.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {displayCourses.map((course) => (
-                      <div key={course.id} onClick={() => setSelectedCourse(course)} className={`group border rounded-3xl p-5 cursor-pointer flex flex-col justify-between space-y-5 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                      <div key={course.id} onClick={() => setSelectedCourse(course)} className="group border rounded-3xl p-5 cursor-pointer flex flex-col justify-between space-y-5 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl bg-surface border-border">
                         <div className="space-y-4">
                           <div className="flex justify-between items-start">
-                            <span className={`${colorThemeClasses.badge} text-[10px] font-bold px-2.5 py-1 rounded-lg`}>{course.code || 'مقرر'}</span>
+                            <span className="bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-1 rounded-lg">{course.code || 'مقرر'}</span>
                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                               <BookOpen className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                             </div>
@@ -621,11 +372,9 @@ export default function MasariMasterApp() {
                         </div>
                         <div className="pt-4 border-t flex justify-between items-center border-border">
                           <span className="text-lg font-black text-emerald-500">{course.price ? `${course.price} ر.س` : 'مجاني'}</span>
-                          <div className="flex items-center gap-2">
-                            <button onClick={(e) => addToCart(course, e)} className="p-2.5 rounded-xl bg-muted hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="إضافة للسلة">
-                              <ShoppingBag className="w-4 h-4" />
-                            </button>
-                          </div>
+                          <button onClick={(e) => addToCart(course, e)} className="p-2.5 rounded-xl bg-muted hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="إضافة للسلة">
+                            <ShoppingBag className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -640,7 +389,6 @@ export default function MasariMasterApp() {
             )}
           </section>
 
-          {/* 5. قسم لماذا تختار مساري؟ */}
           <section className="max-w-7xl mx-auto px-4 py-12">
             <div className="text-center mb-12 space-y-3">
               <h2 className="text-2xl md:text-3xl font-black">لماذا تختار منصة مساري؟</h2>
@@ -652,7 +400,7 @@ export default function MasariMasterApp() {
                 { title: 'ملخصات ذكية', desc: 'نجمع لك الزبدة في ملفات PDF منسقة ومرتبة لتراجعها ليلة الاختبار بثقة.', icon: FileText },
                 { title: 'اختبارات محاكية', desc: 'تدرب على أسئلة سابقة ومشابهة للاختبارات الحقيقية مع تصحيح فوري.', icon: CheckCircle2 },
               ].map((feat, i) => (
-                <div key={i} className={`p-6 rounded-3xl border text-center space-y-4 hover:border-primary transition-colors ${darkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'}`}>
+                <div key={i} className="p-6 rounded-3xl border text-center space-y-4 hover:border-primary transition-colors bg-surface border-border">
                   <div className="w-14 h-14 mx-auto bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
                     <feat.icon className="w-6 h-6" />
                   </div>
@@ -663,7 +411,6 @@ export default function MasariMasterApp() {
             </div>
           </section>
 
-          {/* 6. قسم آراء الطلاب */}
           {realTestimonials.length > 0 && (
             <section className="max-w-7xl mx-auto px-4 pb-12">
               <div className="flex items-center justify-between mb-8">
@@ -673,7 +420,7 @@ export default function MasariMasterApp() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {realTestimonials.map((t) => (
-                  <div key={t.id} className={`rounded-3xl p-6 border space-y-4 hover:shadow-xl transition-shadow ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                  <div key={t.id} className="rounded-3xl p-6 border space-y-4 hover:shadow-xl transition-shadow bg-surface border-border">
                     <Quote className="w-8 h-8 text-primary/20" />
                     <p className="text-sm text-foreground/80 leading-relaxed font-medium">{t.text}</p>
                     <div className="flex items-center justify-between pt-4 border-t border-border">
@@ -691,7 +438,6 @@ export default function MasariMasterApp() {
             </section>
           )}
 
-          {/* 7. قسم الأسئلة الشائعة (FAQ) */}
           <section className="max-w-3xl mx-auto px-4 pb-20">
             <div className="text-center mb-10 space-y-2">
               <h2 className="text-2xl font-black">الأسئلة الشائعة</h2>
@@ -699,11 +445,8 @@ export default function MasariMasterApp() {
             </div>
             <div className="space-y-4">
               {faqs.map((faq, idx) => (
-                <div key={idx} className={`border rounded-2xl overflow-hidden transition-all duration-300 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-                  <button
-                    onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                    className="w-full text-right px-6 py-4 flex justify-between items-center focus:outline-none"
-                  >
+                <div key={idx} className="border rounded-2xl overflow-hidden transition-all duration-300 bg-surface border-border">
+                  <button onClick={() => setOpenFaq(openFaq === idx ? null : idx)} className="w-full text-right px-6 py-4 flex justify-between items-center focus:outline-none">
                     <span className="font-bold text-sm">{faq.q}</span>
                     <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${openFaq === idx ? 'rotate-180 text-primary' : ''}`} />
                   </button>
@@ -717,16 +460,15 @@ export default function MasariMasterApp() {
 
         </main>
       ) : (
-        /* واجهة استعراض المقرر (كما هي مبنية سابقاً بدون أي كسر للمنطق) */
         <main className="relative z-10 max-w-7xl mx-auto p-4 md:p-6 space-y-6 min-h-screen">
-          <div className={`p-4 md:p-5 rounded-3xl border flex justify-between items-center backdrop-blur-md shadow-sm ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
+          <div className="p-4 md:p-5 rounded-3xl border flex justify-between items-center backdrop-blur-md shadow-sm bg-surface border-border">
             <button onClick={() => setSelectedCourse(null)} className="p-2 md:p-2.5 rounded-xl bg-muted text-xs font-bold flex items-center gap-1.5 hover:text-primary transition-colors">
               <ChevronRight className="w-4 h-4" /> رجوع
             </button>
             <h2 className="text-sm md:text-lg font-bold truncate max-w-[60%]">{selectedCourse.title}</h2>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 aspect-video bg-black rounded-3xl flex items-center justify-center border border-slate-800 relative shadow-2xl overflow-hidden group">
+            <div className="lg:col-span-2 aspect-video bg-black rounded-3xl flex items-center justify-center border border-border relative shadow-2xl overflow-hidden group">
               {canAccessLesson ? (
                 selectedLesson?.video_url ? (
                   <iframe src={selectedLesson.video_url} className="w-full h-full" allowFullScreen />
@@ -750,25 +492,25 @@ export default function MasariMasterApp() {
                   </div>
                   <h3 className="text-lg font-bold text-white">هذا الدرس مغلق ومحمي</h3>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">يجب عليك الاشتراك في المقرر لتتمكن من تشغيل المحاضرات الكاملة وعرض المرفقات.</p>
-                  <button onClick={() => addToCart(selectedCourse)} className={`${colorThemeClasses.primary} text-white text-xs font-bold px-6 py-3 rounded-xl shadow-lg hover:scale-105 transition`}>
+                  <button onClick={() => addToCart(selectedCourse)} className="bg-primary text-primary-foreground text-xs font-bold px-6 py-3 rounded-xl shadow-lg hover:scale-105 transition">
                     اشترك بالمقرر لفتح المحتوى
                   </button>
                 </div>
               )}
             </div>
 
-            <div className={`p-5 rounded-3xl border space-y-4 shadow-sm ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+            <div className="p-5 rounded-3xl border space-y-4 shadow-sm bg-surface border-border">
               <h3 className="font-bold text-sm flex items-center gap-2 border-b border-border pb-3">
                 <Layout className="w-4 h-4 text-primary"/> محتويات المقرر ({lessons.length})
               </h3>
               <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                 {lessons.map((l) => (
-                  <button key={l.id} onClick={() => setSelectedLesson(l)} className={`w-full text-right p-3.5 rounded-2xl text-xs flex justify-between items-center transition-all ${selectedLesson?.id === l.id ? `${colorThemeClasses.badge} font-bold border border-primary/20` : 'hover:bg-muted border border-transparent'}`}>
+                  <button key={l.id} onClick={() => setSelectedLesson(l)} className={`w-full text-right p-3.5 rounded-2xl text-xs flex justify-between items-center transition-all ${selectedLesson?.id === l.id ? 'bg-primary/10 font-bold border border-primary/20 text-primary' : 'hover:bg-muted border border-transparent text-muted-foreground'}`}>
                     <span className="flex-1 truncate ml-2">
                       {l.title} {l.is_preview && <span className="text-[9px] bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded font-bold mr-2">مفتوح</span>}
                     </span>
-                    {!isSubscribedToSelected && !l.is_preview && <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-                    {(isSubscribedToSelected || l.is_preview) && <PlayCircle className="w-3.5 h-3.5 text-primary shrink-0 opacity-50" />}
+                    {!isSubscribedToSelected && !l.is_preview && <Lock className="w-3.5 h-3.5 opacity-50 shrink-0" />}
+                    {(isSubscribedToSelected || l.is_preview) && <PlayCircle className="w-3.5 h-3.5 opacity-50 shrink-0" />}
                   </button>
                 ))}
               </div>
@@ -777,36 +519,9 @@ export default function MasariMasterApp() {
         </main>
       )}
 
-      {/* النوافذ المنبثقة (Modals) لم يتم تغيير منطقها */}
-      {showNotifModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className={`border rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
-            <div className="flex justify-between items-center border-b border-border pb-3">
-              <h3 className="text-base font-bold flex items-center gap-2"><Bell className="w-4 h-4 text-primary" /> إشعارات مساري</h3>
-              <button onClick={() => setShowNotifModal(false)} className="text-muted-foreground hover:text-foreground bg-muted p-1.5 rounded-lg"><X className="w-4 h-4"/></button>
-            </div>
-            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-              {relevantNotifications.length > 0 ? (
-                relevantNotifications.map((n) => (
-                  <div key={n.id} className="p-3.5 rounded-2xl bg-muted/50 border border-border text-xs space-y-1.5">
-                    <p className="font-bold text-primary">{n.title}</p>
-                    <p className="text-muted-foreground leading-relaxed">{n.message}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-10">
-                  <Bell className="w-8 h-8 mx-auto text-muted-foreground opacity-20 mb-2"/>
-                  <p className="text-xs text-muted-foreground">لا توجد إشعارات جديدة حالياً.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {showCartModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className={`border rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+          <div className="border rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl bg-surface border-border text-foreground">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-lg font-bold flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-primary" /> سلة المشتريات ({cart.length})</h3>
               <button onClick={() => setShowCartModal(false)} className="text-muted-foreground hover:text-foreground bg-muted p-1.5 rounded-lg"><X className="w-4 h-4"/></button>
@@ -839,9 +554,7 @@ export default function MasariMasterApp() {
                       onChange={(e) => setCouponCode(e.target.value)}
                       className="flex-1 bg-background border border-border rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-primary transition-colors"
                     />
-                    <button onClick={applyMasterCoupon} className="bg-muted hover:bg-primary/10 text-foreground font-bold px-5 py-3 rounded-xl text-xs transition-colors">
-                      تطبيق
-                    </button>
+                    <button onClick={applyMasterCoupon} className="bg-muted hover:bg-primary/10 text-foreground font-bold px-5 py-3 rounded-xl text-xs transition-colors">تطبيق</button>
                   </div>
                 )}
 
@@ -883,13 +596,12 @@ export default function MasariMasterApp() {
         </div>
       )}
 
-      {/* مساعد الذكاء الاصطناعي */}
       {showAiBot && (
-        <div className="fixed bottom-4 left-4 z-50 w-[92vw] sm:w-auto sm:min-w-[320px] max-w-sm animate-in slide-in-from-bottom-4">
-          <div className={`rounded-3xl border shadow-2xl overflow-hidden flex flex-col h-[28rem] sm:h-[32rem] ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-            <div className={`${colorThemeClasses.primary} text-white p-4 flex justify-between items-center shadow-md z-10`}>
+        <div className="fixed bottom-24 right-6 z-50 w-[92vw] sm:w-[360px] max-w-sm animate-in slide-in-from-bottom-4">
+          <div className="rounded-3xl border shadow-2xl overflow-hidden flex flex-col h-[28rem] sm:h-[32rem] bg-surface border-border">
+            <div className="bg-primary text-primary-foreground p-4 flex justify-between items-center shadow-md z-10">
               <span className="font-bold text-sm flex items-center gap-2"><Sparkles className="w-4 h-4" /> Masari AI</span>
-              <button onClick={() => setShowAiBot(false)} className="text-white hover:bg-white/20 p-1.5 rounded-lg transition-colors"><X className="w-4 h-4" /></button>
+              <button onClick={() => setShowAiBot(false)} className="text-primary-foreground hover:bg-white/20 p-1.5 rounded-lg transition-colors"><X className="w-4 h-4" /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs bg-muted/10">
               {aiResponses.length === 0 && (
@@ -901,7 +613,7 @@ export default function MasariMasterApp() {
                 </div>
               )}
               {aiResponses.map((r, i) => (
-                <div key={i} className={`p-3.5 rounded-2xl max-w-[85%] leading-relaxed shadow-sm ${r.role === 'user' ? `${colorThemeClasses.primary} text-white mr-auto rounded-tr-sm` : 'ml-auto bg-background text-foreground border border-border rounded-tl-sm'}`}>
+                <div key={i} className={`p-3.5 rounded-2xl max-w-[85%] leading-relaxed shadow-sm ${r.role === 'user' ? 'bg-primary text-primary-foreground mr-auto rounded-tr-sm' : 'ml-auto bg-background text-foreground border border-border rounded-tl-sm'}`}>
                   {r.text}
                 </div>
               ))}
@@ -915,7 +627,7 @@ export default function MasariMasterApp() {
                 placeholder="اسأل هنا..."
                 className="flex-1 border border-border rounded-xl px-4 py-3 text-xs bg-muted/50 focus:bg-background focus:outline-none focus:border-primary transition-colors"
               />
-              <button onClick={handleAiMasterSend} className={`${colorThemeClasses.primary} text-white px-4 py-3 rounded-xl transition-transform hover:scale-105 shadow-md`}>
+              <button onClick={handleAiMasterSend} className="bg-primary text-primary-foreground px-4 py-3 rounded-xl transition-transform hover:scale-105 shadow-md">
                 <Send className="w-4 h-4" />
               </button>
             </div>
