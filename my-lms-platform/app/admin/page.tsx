@@ -17,12 +17,13 @@ import {
   Trash2, PlusCircle, Check, Eye, EyeOff, ShieldAlert, BarChart3, Ticket,
   Bell, Percent, Search, Edit3, X, GripVertical,
   History, GraduationCap, RefreshCw, ClipboardList, Plus, MessageSquare, Pin, Send,
-  ChevronRight, LogOut, Image as ImageIcon
+  ChevronRight, LogOut, Image as ImageIcon,
+  CheckCircle
 } from 'lucide-react';
 
 interface Question {
   question: string;
-  image_url: string; // تم إضافة حقل الصورة للسؤال
+  image_url: string;
   optionA: string;
   optionB: string;
   optionC: string;
@@ -86,14 +87,14 @@ export default function AdminPage() {
   const [newCourseInst, setNewCourseInst] = useState('');
   const [newCourseDesc, setNewCourseDesc] = useState('');
   const [sectionType, setSectionType] = useState<'bestseller' | 'courses' | 'summaries' | 'books' | 'quizzes'>('courses');
-  const [isPublished, setIsPublished] = useState(false); // تعديل الافتراضي ليكون مخفي (كمسودة)
+  const [isPublished, setIsPublished] = useState(false);
 
   // بيانات الدرس والملفات
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonDesc, setLessonDesc] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
   const [isPreview, setIsPreview] = useState(false);
-  const [isLessonPublished, setIsLessonPublished] = useState(false); // إضافة زر النشر للدرس
+  const [isLessonPublished, setIsLessonPublished] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [summaryFile, setSummaryFile] = useState<File | null>(null);
   const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
@@ -244,22 +245,16 @@ export default function AdminPage() {
     showToast('تم تحديث الإعداد بنجاح');
   };
 
-  // تطوير مشغل اليوتيوب ليدعم (Unlisted) و (Shorts) و (Share links)
   const formatYoutubeEmbed = (url: string) => {
     if (!url) return '';
     let videoId = '';
-    
-    // استخراج المعرف من مختلف أنواع روابط اليوتيوب
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
-
     if (match && match[2].length === 11) {
       videoId = match[2];
     } else if (url.includes('shorts/')) {
       videoId = url.split('shorts/')[1]?.split('?')[0];
     }
-
-    // إرجاع الرابط بصيغة Embed ليعمل بأمان
     return videoId ? `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1` : url;
   };
 
@@ -268,7 +263,6 @@ export default function AdminPage() {
     setTimeout(() => setMsg(''), 3000);
   }
 
-  // 1. الحفظ الآمن للمقرر
   const handleSaveCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCourseTitle) return;
@@ -282,7 +276,7 @@ export default function AdminPage() {
         instructor: newCourseInst ? newCourseInst.trim() : null,
         description: newCourseDesc ? newCourseDesc.trim() : null,
         section_type: sectionType,
-        is_published: isPublished // يعتمد على زر الـ Toggle
+        is_published: isPublished
       };
 
       const { data, error } = await supabase.from('courses').insert([payload]).select();
@@ -302,7 +296,7 @@ export default function AdminPage() {
       setNewCourseOrigPrice('');
       setNewCourseInst('');
       setNewCourseDesc('');
-      setIsPublished(false); // إعادة الافتراضي إلى مسودة
+      setIsPublished(false);
       showToast(isPublished ? `تم نشر المقرر (${newCourseTitle}) بنجاح! 🎉` : `تم حفظ المقرر (${newCourseTitle}) كمسودة.`);
     } catch (err: any) {
       alert(`خطأ: ${err.message}`);
@@ -318,14 +312,13 @@ export default function AdminPage() {
   };
 
   const handleDeleteCourse = async (courseId: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا المقرر نهائياً؟ سيتم حذف جميع الفيديوهات المرتبطة به أيضاً.')) return;
+    if (!confirm('هل أنت متأكد من حذف هذا المقرر نهائياً؟ سيتم حذف جميع والفيديوهات المرتبطة به أيضاً.')) return;
     setCourses(courses.filter(c => c.id !== courseId));
     await supabase.from('courses').delete().eq('id', courseId);
     logAction('حذف مقرر', courseId);
     showToast('تم حذف المقرر بنجاح!');
   };
 
-  // 2. إدارة المقاطع والدروس
   const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourse || !lessonTitle) return;
@@ -364,7 +357,7 @@ export default function AdminPage() {
         summary_url: uploadedSummaryUrl,
         assignment_url: uploadedAssignmentUrl,
         is_preview: isPreview,
-        is_published: isLessonPublished, // الاعتماد على الـ Toggle الجديد
+        is_published: isLessonPublished,
         order_index: lessons.length + 1
       };
 
@@ -380,7 +373,7 @@ export default function AdminPage() {
       setLessonDesc('');
       setVideoUrlInput('');
       setIsPreview(false);
-      setIsLessonPublished(false); // إعادة الافتراضي
+      setIsLessonPublished(false);
       setPdfFile(null);
       setSummaryFile(null);
       setAssignmentFile(null);
@@ -458,7 +451,6 @@ export default function AdminPage() {
     showToast('تم تحديث ترتيب الدروس بنجاح!');
   };
 
-  // 3. منشئ الاختبارات التفاعلية (تم تطويره)
   const addQuestionField = () => {
     setQuestions([...questions, { question: '', image_url: '', optionA: '', optionB: '', optionC: '', optionD: '', correct: 'A' }]);
   };
@@ -505,7 +497,6 @@ export default function AdminPage() {
     showToast('تم حذف الاختبار');
   };
 
-  // باقي الدوال للطلاب والكوبونات (كما هي بدون تغيير)
   const filteredStudents = useMemo(() => {
     if (!studentSearch.trim()) return students;
     const q = studentSearch.toLowerCase().trim();
@@ -708,7 +699,6 @@ export default function AdminPage() {
   return (
     <div dir="rtl" className="min-h-screen flex transition-colors duration-300 font-sans" style={{ backgroundColor: 'var(--masari-bg)', color: 'var(--masari-text)' }}>
 
-      {/* Sidebar - القائمة الجانبية */}
       <aside className="w-64 border-l p-6 flex flex-col h-screen sticky top-0 shrink-0 hidden md:flex" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
         <div className="flex items-center gap-3 mb-8">
           <div className="p-2.5 rounded-2xl shadow-lg flex items-center justify-center" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
@@ -763,10 +753,7 @@ export default function AdminPage() {
         </div>
       </aside>
 
-      {/* Main Content - المحتوى الرئيسي */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto max-h-screen custom-scrollbar relative">
-        
-        {/* Toast Notification */}
         {msg && (
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in">
             <div className="px-6 py-3 rounded-2xl flex items-center gap-2 text-xs font-bold shadow-2xl border" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)', color: 'var(--masari-primary)' }}>
@@ -809,7 +796,6 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* تبويب إنشاء وتجهيز دورة جديدة */}
           {activeTab === 'add_course' && (
             <section className="p-6 md:p-8 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
               <h2 className="text-lg font-black flex items-center gap-2">
@@ -839,7 +825,6 @@ export default function AdminPage() {
                 </div>
                 <textarea placeholder="اكتب وصفاً مفصلاً للمقرر يجذب الطلاب..." rows={4} value={newCourseDesc} onChange={(e) => setNewCourseDesc(e.target.value)} className="w-full border rounded-2xl p-3.5 text-xs focus:outline-none" style={inputStyle} />
 
-                {/* زر الإخفاء أو النشر الذكي */}
                 <div className="flex items-center justify-between border rounded-2xl p-4" style={{ borderColor: 'var(--masari-border)', backgroundColor: 'var(--masari-bg)' }}>
                   <div>
                     <span className="text-sm font-bold block mb-1" style={{ color: 'var(--masari-text)' }}>حالة النشر: {isPublished ? 'منشور ومرئي للطلاب' : 'مسودة (مخفي)'}</span>
@@ -849,7 +834,7 @@ export default function AdminPage() {
                 </div>
 
                 <button type="submit" className="w-full font-bold py-4 rounded-2xl text-xs transition-transform hover:-translate-y-1 shadow-lg flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
-                  <Save className="w-4 h-4"/> 
+                  <Check className="w-4 h-4"/> 
                   {isPublished ? 'حفظ ونشر المقرر فوراً' : 'حفظ المقرر كمسودة'}
                 </button>
               </form>
@@ -883,7 +868,6 @@ export default function AdminPage() {
             </section>
           )}
 
-          {/* تبويب رفع المقاطع والفيديوهات */}
           {activeTab === 'add_lesson' && (
             <section className="p-6 md:p-8 rounded-3xl border space-y-8 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
               <div className="border-b pb-4 mb-4" style={{ borderColor: 'var(--masari-border)' }}>
@@ -942,7 +926,6 @@ export default function AdminPage() {
                 </button>
               </form>
 
-              {/* مقاطع الدورة المحددة */}
               {selectedCourse && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold flex items-center gap-2"><GripVertical className="w-4 h-4"/> ترتيب ومقاطع الدورة الحالية ({lessons.length}):</h3>
@@ -979,7 +962,6 @@ export default function AdminPage() {
             </section>
           )}
 
-          {/* منشئ الاختبارات المطور */}
           {activeTab === 'quizzes' && (
             <section className="p-6 md:p-8 rounded-3xl border space-y-6 shadow-sm animate-in fade-in slide-in-from-bottom-4" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
               <div className="border-b pb-4 mb-4" style={{ borderColor: 'var(--masari-border)' }}>
@@ -1007,10 +989,8 @@ export default function AdminPage() {
                         )}
                       </div>
                       
-                      {/* دعم نص السؤال الطويل */}
                       <textarea placeholder="اكتب نص السؤال هنا (يدعم الأسئلة الطويلة أو المسائل)..." rows={3} value={q.question} onChange={(e) => updateQuestionField(idx, 'question', e.target.value)} className="w-full border rounded-xl p-4 text-sm focus:outline-none" style={inputStyle} required />
                       
-                      {/* دعم الصور في السؤال */}
                       <div className="relative">
                         <ImageIcon className="absolute right-4 top-3.5 w-4 h-4 opacity-40" />
                         <input type="url" placeholder="رابط صورة توضيحية للسؤال (اختياري)" value={q.image_url} onChange={(e) => updateQuestionField(idx, 'image_url', e.target.value)} className="w-full border rounded-xl pr-10 pl-4 py-3 text-xs focus:outline-none" style={inputStyle} />
@@ -1041,26 +1021,10 @@ export default function AdminPage() {
                     <Plus className="w-4 h-4" /> إضافة سؤال جديد
                   </button>
                   <button type="submit" className="flex-1 font-bold py-4 rounded-2xl text-xs shadow-lg transition-transform hover:-translate-y-1 flex justify-center items-center gap-2" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
-                    <Save className="w-4 h-4"/> حفظ ونشر الاختبار
+                    <Check className="w-4 h-4"/> حفظ ونشر الاختبار
                   </button>
                 </div>
               </form>
-
-              <div className="pt-8 border-t space-y-4 mt-8" style={{ borderColor: 'var(--masari-border)' }}>
-                <h3 className="text-sm font-bold flex items-center gap-2"><ClipboardList className="w-4 h-4"/> الاختبارات المنشورة حالياً ({quizzes.length})</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {quizzes.map((qz) => (
-                    <div key={qz.id} className="flex justify-between items-center p-5 rounded-2xl border text-xs shadow-sm transition-colors hover:border-primary/40" style={{ backgroundColor: 'var(--masari-bg)', borderColor: 'var(--masari-border)' }}>
-                      <div>
-                        <span className="font-bold text-sm block mb-1 text-primary">{qz.title}</span>
-                        <span className="text-[10px] font-bold" style={{ color: 'var(--masari-text-muted)' }}>يحتوي {Array.isArray(qz.questions) ? qz.questions.length : 0} أسئلة | المدة: {qz.duration_minutes} دقيقة</span>
-                      </div>
-                      <button type="button" onClick={() => handleDeleteQuiz(qz.id)} className="text-red-500 p-2 hover:bg-red-500/10 rounded-xl transition-colors"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  ))}
-                  {quizzes.length === 0 && <p className="text-xs opacity-50 font-bold p-4">لا توجد اختبارات منشورة.</p>}
-                </div>
-              </div>
             </section>
           )}
 
@@ -1293,7 +1257,6 @@ export default function AdminPage() {
         </div>
       </main>
 
-      {/* Modal تعديل الدرس */}
       {editingLesson && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="rounded-3xl border max-w-xl w-full p-8 space-y-6 shadow-2xl animate-in zoom-in-95" style={{ backgroundColor: 'var(--masari-surface)', borderColor: 'var(--masari-border)' }}>
@@ -1315,10 +1278,10 @@ export default function AdminPage() {
                 <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={4} placeholder="الوصف" className="w-full border rounded-2xl p-4 text-sm focus:outline-none" style={inputStyle} />
               </div>
             </div>
-            <div className="flex gap-3 pt-4 border-t" style={{ borderColor: 'var(--masari-border)' }}>
+            <div className="flex gap-4 pt-4 border-t" style={{ borderColor: 'var(--masari-border)' }}>
               <button type="button" onClick={() => setEditingLesson(null)} className="flex-1 border font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-muted" style={{ borderColor: 'var(--masari-border)', color: 'var(--masari-text)' }}>إلغاء الأمر</button>
               <button type="button" onClick={handleUpdateLesson} disabled={savingEdit} className="flex-1 font-bold py-4 rounded-2xl text-sm shadow-lg disabled:opacity-60 flex justify-center items-center gap-2 hover:-translate-y-1 transition-transform" style={{ backgroundColor: 'var(--masari-primary)', color: 'var(--masari-on-primary)' }}>
-                {savingEdit ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                {savingEdit ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
                 {savingEdit ? 'جاري التحديث...' : 'حفظ التعديلات'}
               </button>
             </div>
