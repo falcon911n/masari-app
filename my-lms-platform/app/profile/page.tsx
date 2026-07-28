@@ -10,7 +10,6 @@ import {
   ShieldCheck, RefreshCw, AlertCircle, Camera, Calendar, Phone, GraduationCap,
   ChevronRight, Palette
 } from 'lucide-react';
-import PlatformCustomization from '@/components/profile/PlatformCustomization';
 
 const THEME_COLORS = [
   { name: 'blue', hex: '#2563EB' }, { name: 'red', hex: '#DC2626' }, { name: 'purple', hex: '#9333EA' },
@@ -47,6 +46,8 @@ export default function ProfilePage() {
 
   const [msg, setMsg] = useState('');
   const [msgStatus, setMsgStatus] = useState<'success' | 'error' | ''>('');
+  
+  const [selectedColor, setSelectedColor] = useState('blue');
 
   useEffect(() => {
     loadProfileData();
@@ -90,6 +91,11 @@ export default function ProfilePage() {
       setLoading(false);
     }
   }
+
+  const handleColorChange = (color: string) => {
+    setSelectedColor(color);
+    document.documentElement.setAttribute('data-theme-color', color);
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -231,7 +237,24 @@ export default function ProfilePage() {
                 {saving ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} {saving ? 'جاري الحفظ...' : 'حفظ التعديلات'}
               </button>
             </form>
-            <PlatformCustomization />
+
+            {/* قسم تخصيص ألوان المنصة بشكل مدمج وآمن */}
+            <div className="rounded-3xl p-6 shadow-xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+              <h2 className="text-base font-black pb-4 border-b flex items-center gap-2 mb-4"><Palette className="w-5 h-5 text-primary" /> ألوان المنصة</h2>
+              <p className="text-xs text-muted-foreground mb-4">اختر اللون المفضل لك ليتم تطبيقه على كامل المنصة.</p>
+              <div className="flex flex-wrap gap-3">
+                {THEME_COLORS.map((c) => (
+                  <button
+                    key={c.name}
+                    onClick={() => handleColorChange(c.name)}
+                    style={{ backgroundColor: c.hex }}
+                    className={`w-8 h-8 rounded-full shadow-sm transition-transform hover:scale-110 ${selectedColor === c.name ? 'ring-2 ring-offset-2 ring-primary scale-110' : ''}`}
+                    title={`لون ${c.name}`}
+                  />
+                ))}
+              </div>
+            </div>
+
           </div>
 
           <div className="space-y-8">

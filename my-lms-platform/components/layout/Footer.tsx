@@ -12,9 +12,6 @@ import {
 } from 'react-icons/fa6'
 import { cn } from '@/lib/utils'
 
-/* -------------------------------------------------------------------------- */
-/*                               إعدادات التواصل                             */
-/* -------------------------------------------------------------------------- */
 const CONTACT_EMAIL = 'falcon702n@gmail.com'
 const CONTACT_PHONE = '0550118282'
 
@@ -37,21 +34,15 @@ const SUPPORT_LINKS: readonly FooterLink[] = [
 const LEGAL_LINKS: readonly FooterLink[] = [
   { href: '/privacy', label: 'سياسة الخصوصية' },
   { href: '/terms', label: 'الشروط والأحكام' },
-  { href: '/terms', label: 'سياسة الاسترجاع' }, // مربوطة بالشروط حالياً لمنع الخطأ
+  { href: '/terms', label: 'سياسة الاسترجاع' }, 
 ]
 
+// تم تفريغ الروابط (href="#") لمنع الدخول لحسابات أشخاص آخرين
 const SOCIAL_LINKS = [
-  { href: 'https://instagram.com/masari', label: 'Instagram', Icon: FaInstagram, color: 'hover:text-pink-500' },
-  { href: 'https://x.com/masari', label: 'X', Icon: FaXTwitter, color: 'hover:text-gray-500' },
-  { href: 'https://youtube.com/@masari', label: 'YouTube', Icon: FaYoutube, color: 'hover:text-red-500' },
-  { href: 'https://t.me/masari', label: 'Telegram', Icon: FaTelegram, color: 'hover:text-blue-400' },
-] as const
-
-const CONTACT_LINKS = [
-  // استبدال الصفر الأول بمفتاح السعودية 966 ليفتح الواتساب مباشرة
-  { href: `https://wa.me/${CONTACT_PHONE.replace(/^0/, '966')}`, label: 'واتساب', Icon: MessageCircle },
-  { href: 'https://t.me/masari_support', label: 'تيليجرام', Icon: FaTelegram },
-  { href: `mailto:${CONTACT_EMAIL}`, label: 'البريد', Icon: Mail },
+  { href: '#', label: 'Instagram', Icon: FaInstagram, color: 'hover:text-pink-500' },
+  { href: '#', label: 'X', Icon: FaXTwitter, color: 'hover:text-gray-500' },
+  { href: '#', label: 'YouTube', Icon: FaYoutube, color: 'hover:text-red-500' },
+  { href: '#', label: 'Telegram', Icon: FaTelegram, color: 'hover:text-blue-400' },
 ] as const
 
 function FooterColumn({ title, links, icon: Icon }: { title: string; links: readonly FooterLink[]; icon?: any }) {
@@ -77,7 +68,6 @@ function FooterColumn({ title, links, icon: Icon }: { title: string; links: read
 export function Footer() {
   const pathname = usePathname()
 
-  // إخفاء الفوتر في صفحات تسجيل الدخول، إنشاء الحساب، ولوحة الأدمن
   if (pathname.includes('/login') || pathname.includes('/register') || pathname.startsWith('/admin')) {
     return null
   }
@@ -109,7 +99,7 @@ export function Footer() {
 
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <PhoneCall className="w-4 h-4 text-primary" /> الدعم الفني
+              <PhoneCall className="w-4 h-4 text-primary" /> تواصل معنا
             </h3>
             <ul className="space-y-3">
               {SUPPORT_LINKS.map(l => (
@@ -117,20 +107,21 @@ export function Footer() {
                   <Link href={l.href} className="text-sm text-muted-foreground hover:text-primary transition">{l.label}</Link>
                 </li>
               ))}
-              <li className="pt-2">
-                <div className="flex items-center gap-2 mb-3">
-                  {CONTACT_LINKS.map((c, i) => (
-                    <a key={i} href={c.href} target="_blank" rel="noreferrer" className="p-2 rounded-xl bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary transition" title={c.label}>
-                      <c.Icon className="w-4 h-4" />
-                    </a>
-                  ))}
+              
+              {/* إظهار الإيميل ورقم الجوال بشكل واضح هنا */}
+              <li className="pt-4">
+                <div className="flex flex-col gap-3 bg-muted/30 p-4 rounded-2xl border border-border">
+                  <a href={`https://wa.me/966550118282`} target="_blank" rel="noreferrer" className="flex items-center gap-3 text-sm text-foreground hover:text-emerald-500 transition-colors">
+                    <MessageCircle className="w-4 h-4 text-emerald-500" />
+                    <span dir="ltr" className="font-bold">{CONTACT_PHONE}</span>
+                  </a>
+                  <a href={`mailto:${CONTACT_EMAIL}`} className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors">
+                    <Mail className="w-4 h-4 text-primary" />
+                    <span className="font-bold">{CONTACT_EMAIL}</span>
+                  </a>
                 </div>
               </li>
-              <li>
-                <Link href={`mailto:${CONTACT_EMAIL}`} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary/10 px-4 py-2.5 text-sm font-bold text-primary transition hover:bg-primary hover:text-white">
-                  <Mail className="w-4 h-4" /> تواصل معنا
-                </Link>
-              </li>
+
             </ul>
           </div>
 
@@ -143,7 +134,7 @@ export function Footer() {
             <span className="text-sm font-bold text-foreground">تابعنا:</span>
             <div className="flex flex-wrap gap-2">
               {SOCIAL_LINKS.map(({ href, label, Icon, color }) => (
-                <a key={label} href={href} target="_blank" rel="noreferrer" title={label} className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:bg-background", color)}>
+                <a key={label} href={href} target={href !== '#' ? "_blank" : undefined} rel="noreferrer" title={label} className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:bg-background", color)}>
                   <Icon className="h-4 w-4" />
                 </a>
               ))}
